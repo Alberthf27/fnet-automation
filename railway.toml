@@ -1,8 +1,6 @@
 [build]
-builder = "nixpacks"
-buildCommand = "mvn clean package -DskipTests"
+builder = "dockerfile"
 
 [deploy]
-startCommand = "java -jar target/fnet-automation-1.0.0.jar"
-healthcheckPath = "/"
 restartPolicyType = "ON_FAILURE"
+healthcheckTimeout = 300
