@@ -1,0 +1,25 @@
+# Archivos compilados
+target/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+*.log
+
+# Maven
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env (nunca subir secretos)
+.env
