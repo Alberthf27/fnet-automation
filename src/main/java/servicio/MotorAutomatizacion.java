@@ -1,6 +1,5 @@
 package servicio;
 
-import DAO.ConfiguracionDAO;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -12,14 +11,12 @@ import java.util.concurrent.TimeUnit;
 public class MotorAutomatizacion {
 
     private final CobrosAutomaticoService cobrosService;
-    private final ConfiguracionDAO configDAO;
     private final ScheduledExecutorService scheduler;
 
     private boolean ejecutandose = false;
 
     public MotorAutomatizacion() {
         this.cobrosService = new CobrosAutomaticoService();
-        this.configDAO = new ConfiguracionDAO();
         this.scheduler = Executors.newSingleThreadScheduledExecutor();
     }
 
@@ -44,14 +41,9 @@ public class MotorAutomatizacion {
         try {
             System.out.println("\n⚙️ [Motor] Ejecutando ciclo de automatización...");
 
-            boolean whatsappActivo = configDAO.obtenerValorBoolean(ConfiguracionDAO.WHATSAPP_HABILITADO);
-            boolean routerActivo = configDAO.obtenerValorBoolean(ConfiguracionDAO.ROUTER_HABILITADO);
-
-            if (!whatsappActivo && !routerActivo) {
-                System.out.println("⏸️ Automatización desactivada.");
-                return;
-            }
-
+            // SIEMPRE ejecutar el proceso de cobros
+            // La generación de facturas es independiente de WhatsApp/Router
+            // Las notificaciones se manejan internamente según configuración
             cobrosService.ejecutarProcesoDiario();
 
         } catch (Exception e) {
