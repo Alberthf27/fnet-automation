@@ -59,9 +59,9 @@ public class CobrosAutomaticoService {
         System.out.println("🔄 INICIANDO PROCESO DIARIO DE COBROS - " + LocalDate.now());
         System.out.println("═══════════════════════════════════════════════════════════");
 
-        // 1. Generar facturas para clientes cuyo DÍA DE PAGO es HOY
-        int diaHoy = LocalDate.now().getDayOfMonth();
-        generarFacturasDelDia(diaHoy);
+        // 1. NUEVO: Generar facturas faltantes para TODOS los clientes activos
+        // Esto asegura que no se pierdan facturas si el sistema estuvo caído
+        generarFacturasFaltantes();
 
         // 2. Revisar facturas vencidas y crear notificaciones de recordatorio
         revisarFacturasVencidas();
@@ -84,47 +84,45 @@ public class CobrosAutomaticoService {
     }
 
     /**
-     * Genera las facturas para clientes cuyo día de pago es el especificado.
-     * Se ejecuta diariamente para generar facturas solo cuando corresponde a cada
-     * cliente.
+     * NUEVO: Genera facturas faltantes para TODOS los clientes activos.
+     * No depende del día de pago - revisa cada suscripción y genera
+     * la factura del siguiente periodo si corresponde.
      */
-    public void generarFacturasDelDia(int diaPago) {
-        System.out.println("\n📋 Revisando facturas para clientes con día de pago = " + diaPago + "...");
+    public void generarFacturasFaltantes() {
+        System.out.println("\n📋 Revisando facturas faltantes para TODOS los clientes...");
 
-        // Seleccionar solo suscripciones cuyo día_pago coincide con hoy
+        // Seleccionar TODAS las suscripciones activas
         String sql = "SELECT s.id_suscripcion, s.id_cliente, s.mes_adelantado, s.dia_pago, " +
                 "c.nombres, c.apellidos, c.telefono, " +
                 "srv.mensualidad, s.codigo_contrato " +
                 "FROM suscripcion s " +
                 "JOIN cliente c ON s.id_cliente = c.id_cliente " +
                 "JOIN servicio srv ON s.id_servicio = srv.id_servicio " +
-                "WHERE s.activo = 1 AND s.dia_pago = ?";
+                "WHERE s.activo = 1";
 
         int facturasGeneradas = 0;
+        int clientesRevisados = 0;
         int notificacionesProgramadas = 0;
 
         try (Connection conn = Conexion.getConexion();
                 PreparedStatement ps = conn.prepareStatement(sql)) {
 
-            ps.setInt(1, diaPago);
-
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
+                    clientesRevisados++;
                     int idSuscripcion = rs.getInt("id_suscripcion");
-                    int idCliente = rs.getInt("id_cliente");
                     boolean mesAdelantado = rs.getInt("mes_adelantado") == 1;
                     String nombreCliente = rs.getString("nombres") + " " + rs.getString("apellidos");
                     String telefono = rs.getString("telefono");
                     double monto = rs.getDouble("mensualidad");
-                    String codigoContrato = rs.getString("codigo_contrato");
 
-                    // Generar la próxima factura
+                    // Intentar generar factura (el método ya valida si corresponde)
                     boolean generada = pagoDAO.generarSiguienteFactura(idSuscripcion);
 
                     if (generada) {
                         facturasGeneradas++;
 
-                        // Si es PREPAGO, programar notificación inmediata
+                        // Si es PREPAGO, programar notificación
                         if (mesAdelantado) {
                             String periodo = mensajeService.formatearPeriodo(LocalDate.now());
                             programarNotificacionRecordatorio(
@@ -140,24 +138,30 @@ public class CobrosAutomaticoService {
             e.printStackTrace();
         }
 
-        if (facturasGeneradas > 0) {
-            System.out.println("   ✅ " + facturasGeneradas + " facturas generadas.");
-            System.out.println("   📱 " + notificacionesProgramadas + " notificaciones programadas (prepago).");
-        } else {
-            System.out.println("   ℹ️ No hay clientes con día de pago " + diaPago + " hoy.");
+        System.out.println("   📊 Clientes revisados: " + clientesRevisados);
+        System.out.println("   ✅ Facturas generadas: " + facturasGeneradas);
+        if (notificacionesProgramadas > 0) {
+            System.out.println("   📱 Notificaciones programadas: " + notificacionesProgramadas);
         }
     }
 
     /**
-     * @deprecated Usar generarFacturasDelDia(int diaPago) en su lugar.
-     *             Genera las facturas del mes para todas las suscripciones activas.
+     * @deprecated Usar generarFacturasFaltantes() en su lugar.
+     *             Genera las facturas para clientes cuyo día de pago es el
+     *             especificado.
+     */
+    @Deprecated
+    public void generarFacturasDelDia(int diaPago) {
+        // Mantener por compatibilidad pero llamar al nuevo método
+        generarFacturasFaltantes();
+    }
+
+    /**
+     * @deprecated Usar generarFacturasFaltantes() en su lugar.
      */
     @Deprecated
     public void generarFacturasMensuales() {
-        // Para compatibilidad, generar para todos los días
-        for (int dia = 1; dia <= 31; dia++) {
-            generarFacturasDelDia(dia);
-        }
+        generarFacturasFaltantes();
     }
 
     /**
