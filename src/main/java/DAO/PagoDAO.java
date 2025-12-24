@@ -154,16 +154,16 @@ public class PagoDAO {
                 fechaProximaFactura = ultimaFechaVencimiento.plusMonths(1);
             }
 
-            // C. VALIDACIÓN CRÍTICA: Solo generar si la fecha está dentro del rango válido
-            // Para PREPAGO: máximo 2 meses en el futuro
-            // Para POSTPAGO: máximo 1 mes en el futuro
-            int mesesMaximos = esMesAdelantado ? 2 : 1;
-            LocalDate fechaLimite = hoy.plusMonths(mesesMaximos);
+            // C. VALIDACIÓN CRÍTICA: Solo generar si corresponde al MES SIGUIENTE o actual
+            // La factura debe ser para máximo 1 mes después del mes actual
+            java.time.YearMonth mesActual = java.time.YearMonth.from(hoy);
+            java.time.YearMonth mesFactura = java.time.YearMonth.from(fechaProximaFactura);
+            java.time.YearMonth mesLimite = mesActual.plusMonths(1);
 
-            if (fechaProximaFactura.isAfter(fechaLimite)) {
+            if (mesFactura.isAfter(mesLimite)) {
                 System.out.println("   ℹ️ Factura para " + idSuscripcion + " ya está al día (próxima: "
-                        + fechaProximaFactura + ")");
-                return false; // No generar, ya está demasiado adelantado
+                        + fechaProximaFactura + ", límite: " + mesLimite + ")");
+                return false; // No generar, es para más de 1 mes en el futuro
             }
 
             // D. Verificar que no exista ya una factura PENDIENTE para este periodo
