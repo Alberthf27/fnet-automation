@@ -36,11 +36,21 @@ public class CobrosAutomaticoService {
         this.pagoDAO = new PagoDAO();
         this.mensajeService = new MensajeTemplateService();
 
-        // Usar implementación real o mock según configuración
-        if (configDAO.obtenerValorBoolean(ConfiguracionDAO.WHATSAPP_HABILITADO)) {
+        // FECHA DE ACTIVACIÓN DE WHATSAPP: 10 de Enero 2026
+        LocalDate fechaActivacionWhatsApp = LocalDate.of(2026, 1, 10);
+        boolean whatsAppActivo = LocalDate.now().isAfter(fechaActivacionWhatsApp) ||
+                LocalDate.now().isEqual(fechaActivacionWhatsApp);
+
+        // Usar implementación real solo si: 1) Está habilitado en config Y 2) Ya pasó
+        // la fecha de activación
+        if (whatsAppActivo && configDAO.obtenerValorBoolean(ConfiguracionDAO.WHATSAPP_HABILITADO)) {
             this.whatsAppService = new CallMeBotWhatsAppService();
+            System.out.println("📱 WhatsApp REAL activado");
         } else {
             this.whatsAppService = new WhatsAppServiceMock();
+            if (!whatsAppActivo) {
+                System.out.println("📱 WhatsApp DESHABILITADO hasta " + fechaActivacionWhatsApp);
+            }
         }
 
         if (configDAO.obtenerValorBoolean(ConfiguracionDAO.ROUTER_HABILITADO)) {
@@ -291,6 +301,14 @@ public class CobrosAutomaticoService {
      */
     public void procesarNotificacionesPendientes() {
         System.out.println("\n📤 Procesando notificaciones pendientes...");
+
+        // NO procesar notificaciones hasta el 10 de Enero 2026
+        LocalDate fechaActivacion = LocalDate.of(2026, 1, 10);
+        if (LocalDate.now().isBefore(fechaActivacion)) {
+            System.out.println("   ⏳ Notificaciones DESHABILITADAS hasta " + fechaActivacion);
+            System.out.println("   ℹ️ Las notificaciones se acumularán y enviarán después de esa fecha.");
+            return;
+        }
 
         List<NotificacionPendiente> pendientes = notificacionDAO.obtenerPendientes();
 
