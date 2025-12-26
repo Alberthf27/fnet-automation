@@ -132,16 +132,9 @@ public class PagoDAO {
                 return false;
             }
 
-            // C. Calcular fecha de vencimiento según tipo
-            LocalDate fechaVencimiento;
-            if (esMesAdelantado) {
-                // PREPAGO: vencimiento en el MES ACTUAL
-                fechaVencimiento = hoy.withDayOfMonth(Math.min(diaPago, hoy.lengthOfMonth()));
-            } else {
-                // POSTPAGO: vencimiento en el PRÓXIMO MES
-                LocalDate proximoMes = hoy.plusMonths(1);
-                fechaVencimiento = proximoMes.withDayOfMonth(Math.min(diaPago, proximoMes.lengthOfMonth()));
-            }
+            // C. Calcular fecha de vencimiento - AMBOS usan mes ACTUAL
+            // La diferencia está en el CONCEPTO (periodo_mes)
+            LocalDate fechaVencimiento = hoy.withDayOfMonth(Math.min(diaPago, hoy.lengthOfMonth()));
 
             // D. Buscar última factura para evitar duplicados
             String sqlUltima = "SELECT fecha_vencimiento FROM factura WHERE id_suscripcion = ? ORDER BY fecha_vencimiento DESC LIMIT 1";
@@ -182,8 +175,9 @@ public class PagoDAO {
                     mesConcepto = fechaVencimiento.plusMonths(1);
                 }
             } else {
-                // POSTPAGO: concepto = mes ANTERIOR al vencimiento
-                mesConcepto = fechaVencimiento.minusMonths(1);
+                // POSTPAGO: concepto = MES ACTUAL (el mes que acaba de usar)
+                // Siempre es el mes de la fecha de vencimiento
+                mesConcepto = fechaVencimiento;
             }
 
             String mesNombre = mesConcepto.format(fmtMes);
