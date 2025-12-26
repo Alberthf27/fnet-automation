@@ -140,15 +140,11 @@ public class PagoDAO {
             }
 
             if (ultimaFechaVencimiento == null) {
-                // PRIMERA factura: usar el día de pago del mes actual/siguiente
-                if (esMesAdelantado) {
-                    // Prepago: genera para el próximo mes
-                    fechaProximaFactura = hoy.plusMonths(1)
-                            .withDayOfMonth(Math.min(diaPago, hoy.plusMonths(1).lengthOfMonth()));
-                } else {
-                    // Postpago: genera para el mes actual
-                    fechaProximaFactura = hoy.withDayOfMonth(Math.min(diaPago, hoy.lengthOfMonth()));
-                }
+                // PRIMERA factura
+                // PREPAGO: Paga al inicio del mes por ESE mes (mes actual)
+                // POSTPAGO: Paga al final del mes por el mes anterior
+                // Ambos usan el día de pago del MES ACTUAL para la fecha de vencimiento
+                fechaProximaFactura = hoy.withDayOfMonth(Math.min(diaPago, hoy.lengthOfMonth()));
             } else {
                 // Ya existe factura previa: la nueva es 1 mes después
                 fechaProximaFactura = ultimaFechaVencimiento.plusMonths(1);
