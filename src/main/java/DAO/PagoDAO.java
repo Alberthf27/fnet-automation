@@ -155,21 +155,23 @@ public class PagoDAO {
             }
 
             // C. VALIDACIÓN CRÍTICA #1: Solo generar si ya llegó o pasó el día de pago
-            // Si hoy es 24 y dia_pago es 28, NO generar aún
+            // Si hoy es 26 y dia_pago es 28, NO generar aún
             int diaHoy = hoy.getDayOfMonth();
 
-            // Para PREPAGO: la factura del próximo mes se genera en el día de pago del mes
-            // actual
-            // Para POSTPAGO: la factura del mes actual se genera en el día de pago del mes
-            // actual
+            // ESTA VALIDACIÓN APLICA A TODOS (con o sin facturas previas)
+            if (diaHoy < diaPago) {
+                System.out.println("   ⏳ Suscripción " + idSuscripcion + " - día de pago es " + diaPago
+                        + ", hoy es " + diaHoy + ". Esperar.");
+                return false;
+            }
+
+            // Para clientes con facturas previas, verificaciones adicionales
             if (ultimaFechaVencimiento != null) {
-                // Ya tiene facturas previas - verificar si es hora de generar la siguiente
                 java.time.YearMonth mesUltimaFactura = java.time.YearMonth.from(ultimaFechaVencimiento);
                 java.time.YearMonth mesActual = java.time.YearMonth.from(hoy);
 
                 // Si la última factura es del mes actual o futuro, no generar
                 if (!mesUltimaFactura.isBefore(mesActual)) {
-                    // Ya tiene factura para este mes o después
                     if (esMesAdelantado) {
                         // Prepago: ya tiene factura del próximo mes, no generar más
                         java.time.YearMonth mesSiguiente = mesActual.plusMonths(1);
@@ -182,13 +184,6 @@ public class PagoDAO {
                         System.out.println("   ℹ️ Suscripción " + idSuscripcion + " ya tiene factura del mes actual");
                         return false;
                     }
-                }
-
-                // Verificar si ya pasó el día de pago para generar la siguiente
-                if (diaHoy < diaPago) {
-                    System.out.println("   ⏳ Suscripción " + idSuscripcion + " - día de pago es " + diaPago
-                            + ", hoy es " + diaHoy + ". Esperar.");
-                    return false;
                 }
             }
 
