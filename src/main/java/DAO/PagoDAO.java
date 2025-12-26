@@ -183,16 +183,15 @@ public class PagoDAO {
                 }
             }
 
-            // D. VALIDACIÓN CRÍTICA #2: Solo generar si corresponde al MES SIGUIENTE o
-            // actual
+            // D. VALIDACIÓN CRÍTICA #2: Solo generar para el MES ACTUAL
+            // NO generar para meses futuros - cada mes se genera en su momento
             java.time.YearMonth mesActualFinal = java.time.YearMonth.from(hoy);
             java.time.YearMonth mesFactura = java.time.YearMonth.from(fechaProximaFactura);
-            java.time.YearMonth mesLimite = mesActualFinal.plusMonths(1);
 
-            if (mesFactura.isAfter(mesLimite)) {
-                System.out.println("   ℹ️ Factura para " + idSuscripcion + " ya está al día (próxima: "
-                        + fechaProximaFactura + ", límite: " + mesLimite + ")");
-                return false; // No generar, es para más de 1 mes en el futuro
+            if (mesFactura.isAfter(mesActualFinal)) {
+                System.out.println("   ℹ️ Factura para " + idSuscripcion + " es de un mes futuro ("
+                        + mesFactura + "). Solo se genera en su mes correspondiente.");
+                return false; // No generar facturas de meses futuros
             }
 
             // D. Verificar que no exista ya una factura PENDIENTE para este periodo

@@ -69,17 +69,23 @@ public class CobrosAutomaticoService {
         System.out.println("🔄 INICIANDO PROCESO DIARIO DE COBROS - " + LocalDate.now());
         System.out.println("═══════════════════════════════════════════════════════════");
 
-        // 1. NUEVO: Generar facturas faltantes para TODOS los clientes activos
-        // Esto asegura que no se pierdan facturas si el sistema estuvo caído
-        generarFacturasFaltantes();
+        // 1. Generar facturas - SOLO 2 veces al día (8AM y 6PM) o al iniciar
+        int horaActual = java.time.LocalTime.now().getHour();
+        if (horaActual == 8 || horaActual == 18 || primeraEjecucionDelDia()) {
+            System.out.println("\n📋 [Generación de Facturas - " + horaActual + ":00]");
+            generarFacturasFaltantes();
+        } else {
+            System.out.println("\n📋 Generación de facturas: Solo a las 8AM y 6PM (actual: " + horaActual + ":00)");
+        }
 
-        // 2. Revisar facturas vencidas y crear notificaciones de recordatorio
+        // 2. Revisar facturas vencidas y crear notificaciones de recordatorio (CADA
+        // HORA)
         revisarFacturasVencidas();
 
-        // 3. Revisar ultimátums vencidos y ejecutar cortes
+        // 3. Revisar ultimátums vencidos y ejecutar cortes (CADA HORA)
         revisarUltimatumsVencidos();
 
-        // 4. Procesar cola de notificaciones pendientes
+        // 4. Procesar cola de notificaciones pendientes (CADA HORA)
         procesarNotificacionesPendientes();
 
         // 5. Limpiar alertas antiguas
@@ -91,6 +97,18 @@ public class CobrosAutomaticoService {
         System.out.println("═══════════════════════════════════════════════════════════");
         System.out.println("✅ PROCESO DIARIO COMPLETADO");
         System.out.println("═══════════════════════════════════════════════════════════");
+    }
+
+    // Controla si es la primera ejecución del día
+    private static java.time.LocalDate ultimaFechaEjecucion = null;
+
+    private boolean primeraEjecucionDelDia() {
+        java.time.LocalDate hoy = java.time.LocalDate.now();
+        if (ultimaFechaEjecucion == null || !ultimaFechaEjecucion.equals(hoy)) {
+            ultimaFechaEjecucion = hoy;
+            return true;
+        }
+        return false;
     }
 
     /**
