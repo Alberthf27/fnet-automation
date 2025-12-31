@@ -109,15 +109,11 @@ public class CobrosAutomaticoService {
      * la factura del siguiente periodo si corresponde.
      */
     public void generarFacturasFaltantes() {
-        System.out.println("\n📋 Revisando facturas faltantes para TODOS los clientes...");
+        System.out.println("\n📋 [v2.0-DEBUG] Revisando facturas faltantes para TODOS los clientes...");
 
         // Seleccionar TODAS las suscripciones activas
         String sql = "SELECT s.id_suscripcion, s.id_cliente, s.mes_adelantado, s.dia_pago, " +
-<<<<<<< HEAD
                 "c.nombres, c.apellidos, c.telefono, c.dni_cliente, " + // CORREGIDO: c.dni_cliente
-=======
-                "c.nombres, c.apellidos, c.telefono, c.dni_cliente, " +
->>>>>>> c65b35d90b331b7ca42368efad6f7f43922f809a
                 "srv.mensualidad, s.codigo_contrato " +
                 "FROM suscripcion s " +
                 "JOIN cliente c ON s.id_cliente = c.id_cliente " +
@@ -138,11 +134,7 @@ public class CobrosAutomaticoService {
                     boolean mesAdelantado = rs.getInt("mes_adelantado") == 1;
                     String nombreCliente = rs.getString("nombres") + " " + rs.getString("apellidos");
                     String telefono = rs.getString("telefono");
-<<<<<<< HEAD
                     String dni = rs.getString("dni_cliente"); // CORREGIDO: dni_cliente
-=======
-                    String dni = rs.getString("dni_cliente");
->>>>>>> c65b35d90b331b7ca42368efad6f7f43922f809a
                     double monto = rs.getDouble("mensualidad");
 
                     // Intentar generar factura (el método ya valida si corresponde)
@@ -345,6 +337,14 @@ public class CobrosAutomaticoService {
      */
     public void procesarNotificacionesPendientes() {
         System.out.println("\n📤 Procesando notificaciones pendientes...");
+
+        // NO procesar notificaciones hasta el 10 de Enero 2026
+        LocalDate fechaActivacion = LocalDate.of(2026, 1, 10);
+        if (LocalDate.now().isBefore(fechaActivacion)) {
+            System.out.println("   ⏳ Notificaciones DESHABILITADAS hasta " + fechaActivacion);
+            System.out.println("   ℹ️ Las notificaciones se acumularán y enviarán después de esa fecha.");
+            return;
+        }
 
         List<NotificacionPendiente> pendientes = notificacionDAO.obtenerPendientes();
 
