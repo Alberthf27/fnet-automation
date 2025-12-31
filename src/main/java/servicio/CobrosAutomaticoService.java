@@ -121,7 +121,7 @@ public class CobrosAutomaticoService {
 
         // Seleccionar TODAS las suscripciones activas
         String sql = "SELECT s.id_suscripcion, s.id_cliente, s.mes_adelantado, s.dia_pago, " +
-                "c.nombres, c.apellidos, c.telefono, c.dni, " + // AGREGADO: c.dni
+                "c.nombres, c.apellidos, c.telefono, c.dni_cliente, " + // CORREGIDO: c.dni_cliente
                 "srv.mensualidad, s.codigo_contrato " +
                 "FROM suscripcion s " +
                 "JOIN cliente c ON s.id_cliente = c.id_cliente " +
@@ -142,7 +142,7 @@ public class CobrosAutomaticoService {
                     boolean mesAdelantado = rs.getInt("mes_adelantado") == 1;
                     String nombreCliente = rs.getString("nombres") + " " + rs.getString("apellidos");
                     String telefono = rs.getString("telefono");
-                    String dni = rs.getString("dni"); // AGREGADO: Obtener DNI
+                    String dni = rs.getString("dni_cliente"); // CORREGIDO: dni_cliente
                     double monto = rs.getDouble("mensualidad");
 
                     // Intentar generar factura (el método ya valida si corresponde)
