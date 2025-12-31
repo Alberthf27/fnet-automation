@@ -173,30 +173,8 @@ public class PagoDAO {
             // Formato del rango: "20/12/25 - 20/01/26"
             rangoPeriodo = fechaInicio.format(fmtCorto) + " - " + fechaFin.format(fmtCorto);
 
-            // D. Buscar última factura para evitar duplicados
-            String sqlUltima = "SELECT fecha_vencimiento FROM factura WHERE id_suscripcion = ? ORDER BY fecha_vencimiento DESC LIMIT 1";
-            LocalDate ultimaFechaVencimiento = null;
-
-            try (PreparedStatement ps = conn.prepareStatement(sqlUltima)) {
-                ps.setInt(1, idSuscripcion);
-                ResultSet rs = ps.executeQuery();
-                if (rs.next()) {
-                    Date fechaSql = rs.getDate(1);
-                    if (fechaSql != null) {
-                        ultimaFechaVencimiento = fechaSql.toLocalDate();
-                    }
-                }
-            }
-
-            // Si ya existe factura con este vencimiento o posterior, no generar
-            if (ultimaFechaVencimiento != null) {
-                if (!ultimaFechaVencimiento.isBefore(fechaVencimiento)) {
-                    System.out.println("   ℹ️ Suscripción " + idSuscripcion + " ya tiene factura");
-                    return false;
-                }
-            }
-
-            // E. Verificar que no exista factura para este periodo
+            // D. Verificar que no exista factura para este periodo (ÚNICA VALIDACIÓN
+            // CONFIABLE)
             String sqlExiste = "SELECT COUNT(*) FROM factura WHERE id_suscripcion = ? AND periodo_mes = ?";
             try (PreparedStatement ps = conn.prepareStatement(sqlExiste)) {
                 ps.setInt(1, idSuscripcion);

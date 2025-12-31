@@ -36,21 +36,13 @@ public class CobrosAutomaticoService {
         this.pagoDAO = new PagoDAO();
         this.mensajeService = new MensajeTemplateService();
 
-        // FECHA DE ACTIVACIÓN DE WHATSAPP: 10 de Enero 2026
-        LocalDate fechaActivacionWhatsApp = LocalDate.of(2026, 1, 10);
-        boolean whatsAppActivo = LocalDate.now().isAfter(fechaActivacionWhatsApp) ||
-                LocalDate.now().isEqual(fechaActivacionWhatsApp);
-
-        // Usar implementación real solo si: 1) Está habilitado en config Y 2) Ya pasó
-        // la fecha de activación
-        if (whatsAppActivo && configDAO.obtenerValorBoolean(ConfiguracionDAO.WHATSAPP_HABILITADO)) {
-            this.whatsAppService = new TwilioWhatsAppService(); // CAMBIADO: Twilio en lugar de CallMeBot
+        // WhatsApp con Twilio - ACTIVADO INMEDIATAMENTE
+        if (configDAO.obtenerValorBoolean(ConfiguracionDAO.WHATSAPP_HABILITADO)) {
+            this.whatsAppService = new TwilioWhatsAppService(); // Twilio en lugar de CallMeBot
             System.out.println("📱 WhatsApp REAL activado (Twilio)");
         } else {
             this.whatsAppService = new WhatsAppServiceMock();
-            if (!whatsAppActivo) {
-                System.out.println("📱 WhatsApp DESHABILITADO hasta " + fechaActivacionWhatsApp);
-            }
+            System.out.println("📱 WhatsApp DESHABILITADO en configuración");
         }
 
         if (configDAO.obtenerValorBoolean(ConfiguracionDAO.ROUTER_HABILITADO)) {
@@ -121,7 +113,11 @@ public class CobrosAutomaticoService {
 
         // Seleccionar TODAS las suscripciones activas
         String sql = "SELECT s.id_suscripcion, s.id_cliente, s.mes_adelantado, s.dia_pago, " +
+<<<<<<< HEAD
                 "c.nombres, c.apellidos, c.telefono, c.dni_cliente, " + // CORREGIDO: c.dni_cliente
+=======
+                "c.nombres, c.apellidos, c.telefono, c.dni_cliente, " +
+>>>>>>> c65b35d90b331b7ca42368efad6f7f43922f809a
                 "srv.mensualidad, s.codigo_contrato " +
                 "FROM suscripcion s " +
                 "JOIN cliente c ON s.id_cliente = c.id_cliente " +
@@ -142,7 +138,11 @@ public class CobrosAutomaticoService {
                     boolean mesAdelantado = rs.getInt("mes_adelantado") == 1;
                     String nombreCliente = rs.getString("nombres") + " " + rs.getString("apellidos");
                     String telefono = rs.getString("telefono");
+<<<<<<< HEAD
                     String dni = rs.getString("dni_cliente"); // CORREGIDO: dni_cliente
+=======
+                    String dni = rs.getString("dni_cliente");
+>>>>>>> c65b35d90b331b7ca42368efad6f7f43922f809a
                     double monto = rs.getDouble("mensualidad");
 
                     // Intentar generar factura (el método ya valida si corresponde)
@@ -345,14 +345,6 @@ public class CobrosAutomaticoService {
      */
     public void procesarNotificacionesPendientes() {
         System.out.println("\n📤 Procesando notificaciones pendientes...");
-
-        // NO procesar notificaciones hasta el 10 de Enero 2026
-        LocalDate fechaActivacion = LocalDate.of(2026, 1, 10);
-        if (LocalDate.now().isBefore(fechaActivacion)) {
-            System.out.println("   ⏳ Notificaciones DESHABILITADAS hasta " + fechaActivacion);
-            System.out.println("   ℹ️ Las notificaciones se acumularán y enviarán después de esa fecha.");
-            return;
-        }
 
         List<NotificacionPendiente> pendientes = notificacionDAO.obtenerPendientes();
 
