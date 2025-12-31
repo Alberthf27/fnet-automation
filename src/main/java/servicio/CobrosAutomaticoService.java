@@ -338,14 +338,6 @@ public class CobrosAutomaticoService {
     public void procesarNotificacionesPendientes() {
         System.out.println("\n📤 Procesando notificaciones pendientes...");
 
-        // NO procesar notificaciones hasta el 10 de Enero 2026
-        LocalDate fechaActivacion = LocalDate.of(2026, 1, 10);
-        if (LocalDate.now().isBefore(fechaActivacion)) {
-            System.out.println("   ⏳ Notificaciones DESHABILITADAS hasta " + fechaActivacion);
-            System.out.println("   ℹ️ Las notificaciones se acumularán y enviarán después de esa fecha.");
-            return;
-        }
-
         List<NotificacionPendiente> pendientes = notificacionDAO.obtenerPendientes();
 
         int enviados = 0;
