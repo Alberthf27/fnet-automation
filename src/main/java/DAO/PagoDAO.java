@@ -457,22 +457,24 @@ public class PagoDAO {
     }
 
     /**
-     * Crea una factura manual (para migración de datos desde Excel).
+     * Crea una factura manual (para migración de datos o nuevo contrato).
      * 
      * @param registrarEnCaja Si es true y estado=PAGADO, registra en
      *                        movimiento_caja
+     * @param rangoPeriodo    Rango del periodo (ej: "20 Dic - 20 Ene"), puede ser
+     *                        null
      */
     public boolean crearFacturaManual(int idSuscripcion, String periodoMes, double monto,
             int estado, java.sql.Date fechaVencimiento,
-            boolean registrarEnCaja, int idUsuario) {
+            boolean registrarEnCaja, int idUsuario, String rangoPeriodo) {
         Connection conn = null;
         try {
             conn = Conexion.getConexion();
             conn.setAutoCommit(false);
 
             String sqlInsert = "INSERT INTO factura (id_suscripcion, fecha_emision, fecha_vencimiento, " +
-                    "monto_total, monto_pagado, id_estado, codigo_factura, periodo_mes, fecha_pago) " +
-                    "VALUES (?, NOW(), ?, ?, ?, ?, CONCAT('MIG-', FLOOR(RAND()*100000)), ?, ?)";
+                    "monto_total, monto_pagado, id_estado, codigo_factura, periodo_mes, fecha_pago, rango_periodo) " +
+                    "VALUES (?, NOW(), ?, ?, ?, ?, CONCAT('MIG-', FLOOR(RAND()*100000)), ?, ?, ?)";
 
             java.sql.Date fechaPago = (estado == 2) ? fechaVencimiento : null;
             double montoPagado = (estado == 2) ? monto : 0;
@@ -486,6 +488,7 @@ public class PagoDAO {
                 ps.setInt(5, estado);
                 ps.setString(6, periodoMes);
                 ps.setDate(7, fechaPago);
+                ps.setString(8, rangoPeriodo); // Puede ser null
                 ps.executeUpdate();
 
                 ResultSet rsKeys = ps.getGeneratedKeys();
@@ -501,7 +504,7 @@ public class PagoDAO {
                 try (PreparedStatement psCaja = conn.prepareStatement(sqlCaja)) {
                     psCaja.setDate(1, fechaVencimiento);
                     psCaja.setDouble(2, monto);
-                    psCaja.setString(3, "Migración - " + periodoMes + " (Factura #" + idFacturaGenerada + ")");
+                    psCaja.setString(3, "Pago - " + periodoMes + " (Factura #" + idFacturaGenerada + ")");
                     psCaja.setInt(4, idUsuario);
                     psCaja.executeUpdate();
                 }
@@ -524,6 +527,16 @@ public class PagoDAO {
             } catch (Exception ex) {
             }
         }
+    }
+
+    /**
+     * Versión de compatibilidad sin rango_periodo (para código existente).
+     */
+    public boolean crearFacturaManual(int idSuscripcion, String periodoMes, double monto,
+            int estado, java.sql.Date fechaVencimiento,
+            boolean registrarEnCaja, int idUsuario) {
+        return crearFacturaManual(idSuscripcion, periodoMes, monto, estado,
+                fechaVencimiento, registrarEnCaja, idUsuario, null);
     }
 
     /**
@@ -657,5 +670,29 @@ public class PagoDAO {
             e.printStackTrace();
         }
         return null;
+    }
+
+    /**
+     * Cuenta cuántas facturas pendientes tiene una suscripción.
+     * Usado para determinar si enviar advertencia de corte (3+ meses).
+     */
+    public int contarFacturasPendientes(int idSuscripcion) {
+        String sql = "SELECT COUNT(*) as total FROM factura WHERE id_suscripcion = ? AND id_estado = 1";
+
+        try (Connection conn = Conexion.getConexion();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, idSuscripcion);
+            ResultSet rs = ps.executeQuery();
+
+            if (rs.next()) {
+                return rs.getInt("total");
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Error contando facturas pendientes: " + e.getMessage());
+        }
+
+        return 0;
     }
 }
