@@ -36,21 +36,13 @@ public class CobrosAutomaticoService {
         this.pagoDAO = new PagoDAO();
         this.mensajeService = new MensajeTemplateService();
 
-        // FECHA DE ACTIVACIÓN DE WHATSAPP: 10 de Enero 2026
-        LocalDate fechaActivacionWhatsApp = LocalDate.of(2026, 1, 10);
-        boolean whatsAppActivo = LocalDate.now().isAfter(fechaActivacionWhatsApp) ||
-                LocalDate.now().isEqual(fechaActivacionWhatsApp);
-
-        // Usar implementación real solo si: 1) Está habilitado en config Y 2) Ya pasó
-        // la fecha de activación
-        if (whatsAppActivo && configDAO.obtenerValorBoolean(ConfiguracionDAO.WHATSAPP_HABILITADO)) {
-            this.whatsAppService = new TwilioWhatsAppService(); // CAMBIADO: Twilio en lugar de CallMeBot
+        // WhatsApp con Twilio - ACTIVADO INMEDIATAMENTE
+        if (configDAO.obtenerValorBoolean(ConfiguracionDAO.WHATSAPP_HABILITADO)) {
+            this.whatsAppService = new TwilioWhatsAppService(); // Twilio en lugar de CallMeBot
             System.out.println("📱 WhatsApp REAL activado (Twilio)");
         } else {
             this.whatsAppService = new WhatsAppServiceMock();
-            if (!whatsAppActivo) {
-                System.out.println("📱 WhatsApp DESHABILITADO hasta " + fechaActivacionWhatsApp);
-            }
+            System.out.println("📱 WhatsApp DESHABILITADO en configuración");
         }
 
         if (configDAO.obtenerValorBoolean(ConfiguracionDAO.ROUTER_HABILITADO)) {
