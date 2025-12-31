@@ -44,8 +44,8 @@ public class CobrosAutomaticoService {
         // Usar implementación real solo si: 1) Está habilitado en config Y 2) Ya pasó
         // la fecha de activación
         if (whatsAppActivo && configDAO.obtenerValorBoolean(ConfiguracionDAO.WHATSAPP_HABILITADO)) {
-            this.whatsAppService = new CallMeBotWhatsAppService();
-            System.out.println("📱 WhatsApp REAL activado");
+            this.whatsAppService = new TwilioWhatsAppService(); // CAMBIADO: Twilio en lugar de CallMeBot
+            System.out.println("📱 WhatsApp REAL activado (Twilio)");
         } else {
             this.whatsAppService = new WhatsAppServiceMock();
             if (!whatsAppActivo) {
@@ -121,7 +121,7 @@ public class CobrosAutomaticoService {
 
         // Seleccionar TODAS las suscripciones activas
         String sql = "SELECT s.id_suscripcion, s.id_cliente, s.mes_adelantado, s.dia_pago, " +
-                "c.nombres, c.apellidos, c.telefono, " +
+                "c.nombres, c.apellidos, c.telefono, c.dni, " + // AGREGADO: c.dni
                 "srv.mensualidad, s.codigo_contrato " +
                 "FROM suscripcion s " +
                 "JOIN cliente c ON s.id_cliente = c.id_cliente " +
@@ -142,6 +142,7 @@ public class CobrosAutomaticoService {
                     boolean mesAdelantado = rs.getInt("mes_adelantado") == 1;
                     String nombreCliente = rs.getString("nombres") + " " + rs.getString("apellidos");
                     String telefono = rs.getString("telefono");
+                    String dni = rs.getString("dni"); // AGREGADO: Obtener DNI
                     double monto = rs.getDouble("mensualidad");
 
                     // Intentar generar factura (el método ya valida si corresponde)
@@ -150,13 +151,38 @@ public class CobrosAutomaticoService {
                     if (generada) {
                         facturasGeneradas++;
 
-                        // Si es PREPAGO, programar notificación
-                        if (mesAdelantado) {
+                        // Contar facturas pendientes DESPUÉS de generar la nueva
+                        int facturasPendientes = pagoDAO.contarFacturasPendientes(idSuscripcion);
+
+                        // ⚠️ MODO PRUEBA: Solo enviar a DNI 60799166
+                        boolean esPrueba = "60799166".equals(dni);
+
+                        if (esPrueba) {
+                            // NOTIFICACIÓN MENSUAL: Siempre enviar cuando se genera factura
                             String periodo = mensajeService.formatearPeriodo(LocalDate.now());
-                            programarNotificacionRecordatorio(
-                                    idSuscripcion, nombreCliente, telefono,
-                                    periodo, monto, LocalDate.now());
+                            String mensajePago = String.format(
+                                    "Hola %s, te recordamos que ya está disponible tu pago del mes de %s por S/. %.2f. ¡Gracias!",
+                                    nombreCliente, periodo, monto);
+                            whatsAppService.enviarMensaje(telefono, mensajePago);
                             notificacionesProgramadas++;
+                            System.out.println("   📱 Notificación enviada a cliente de prueba: " + nombreCliente);
+                        } else {
+                            System.out.println(
+                                    "   ⏭️ Cliente omitido (no es prueba): " + nombreCliente + " - DNI: " + dni);
+                        }
+
+                        // ADVERTENCIA DE CORTE: Si llega a 3 meses de deuda (solo para cliente de
+                        // prueba)
+                        if (esPrueba && facturasPendientes >= 3) {
+                            double deudaTotal = monto * facturasPendientes;
+                            String mensajeUrgente = String.format(
+                                    "⚠️ AVISO IMPORTANTE %s: Tienes %d meses de deuda acumulada (S/. %.2f). " +
+                                            "Debes regularizar tu pago en los próximos 5 días para evitar el corte de servicio. "
+                                            +
+                                            "Comunícate con nosotros para coordinar tu pago.",
+                                    nombreCliente, facturasPendientes, deudaTotal);
+                            whatsAppService.enviarMensaje(telefono, mensajeUrgente);
+                            System.out.println("   ⚠️ Advertencia de corte enviada a: " + nombreCliente);
                         }
                     }
                 }
