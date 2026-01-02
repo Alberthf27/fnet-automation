@@ -479,7 +479,7 @@ public class SuscripcionDAO {
         String sql = "SELECT c.dni FROM cliente c " +
                 "INNER JOIN suscripcion s ON s.id_cliente = c.id_cliente " +
                 "WHERE s.id_suscripcion = ?";
-        try (Connection con = bd.Conexion.getConexion();
+        try (Connection con = Conexion.getConnection();
                 PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setInt(1, idSuscripcion);
             ResultSet rs = ps.executeQuery();
