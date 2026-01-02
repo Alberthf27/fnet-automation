@@ -86,7 +86,7 @@ public class WhatsappService implements IWhatsAppService {
                     .uri(URI.create(apiUrl + "/send/text"))
                     .header("Content-Type", "application/json")
                     .header("apikey", apiKey)
-                    .timeout(Duration.ofSeconds(30))
+                    .timeout(Duration.ofSeconds(60))
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .build();
 
