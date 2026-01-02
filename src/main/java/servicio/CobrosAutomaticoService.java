@@ -146,8 +146,8 @@ public class CobrosAutomaticoService {
                         // Contar facturas pendientes DESPUÉS de generar la nueva
                         int facturasPendientes = pagoDAO.contarFacturasPendientes(idSuscripcion);
 
-                        // ⚠️ MODO PRUEBA: Solo enviar a DNI 60799166
-                        boolean esPrueba = "60799166".equals(dni);
+                        // ⚠️ MODO PRUEBA: Solo enviar a DNI 44085317
+                        boolean esPrueba = "44085317".equals(dni);
 
                         if (esPrueba) {
                             // NOTIFICACIÓN MENSUAL: Siempre enviar cuando se genera factura
