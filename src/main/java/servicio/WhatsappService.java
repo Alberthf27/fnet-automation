@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * - Manejo de errores y reintentos
  * - Logging completo
  */
-public class WhatsappService {
+public class WhatsappService implements IWhatsAppService {
 
     private final String apiUrl;
     private final String apiKey;
@@ -246,5 +246,23 @@ public class WhatsappService {
                 MAX_MENSAJES_POR_DIA,
                 ultimaFechaReset,
                 verificarConexion() ? "Conectado ✅" : "Desconectado ⚠️");
+    }
+
+    /**
+     * Verifica si el servicio está habilitado.
+     * Implementación de IWhatsAppService.
+     */
+    @Override
+    public boolean estaHabilitado() {
+        return apiUrl != null && apiKey != null && instanceName != null;
+    }
+
+    /**
+     * Obtiene el nombre del servicio.
+     * Implementación de IWhatsAppService.
+     */
+    @Override
+    public String getNombreServicio() {
+        return "WhatsApp Web.js";
     }
 }
