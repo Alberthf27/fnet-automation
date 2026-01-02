@@ -116,6 +116,9 @@ public class WhatsappService implements IWhatsAppService {
      * Construye el JSON para WhatsApp Web.js API.
      */
     private String construirJSON(String telefono, String mensaje) {
+        // Normalizar teléfono: agregar código de país 51 si no lo tiene
+        String telefonoNormalizado = normalizarTelefono(telefono);
+
         // Escapar caracteres especiales en el mensaje
         String mensajeEscapado = mensaje
                 .replace("\\", "\\\\")
@@ -124,8 +127,24 @@ public class WhatsappService implements IWhatsAppService {
 
         return String.format(
                 "{\"phone\":\"%s\",\"message\":\"%s\"}",
-                telefono,
+                telefonoNormalizado,
                 mensajeEscapado);
+    }
+
+    /**
+     * Normaliza un número de teléfono agregando el código de país si no lo tiene.
+     * Asume Perú (51) como código por defecto.
+     */
+    private String normalizarTelefono(String telefono) {
+        // Remover espacios y caracteres especiales
+        String limpio = telefono.replaceAll("[^0-9]", "");
+
+        // Si no empieza con 51, agregarlo
+        if (!limpio.startsWith("51")) {
+            limpio = "51" + limpio;
+        }
+
+        return limpio;
     }
 
     /**
