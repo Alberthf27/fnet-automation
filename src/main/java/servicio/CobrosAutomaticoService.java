@@ -36,10 +36,10 @@ public class CobrosAutomaticoService {
         this.pagoDAO = new PagoDAO();
         this.mensajeService = new MensajeTemplateService();
 
-        // WhatsApp con Twilio - ACTIVADO INMEDIATAMENTE
+        // WhatsApp con Evolution API - ACTIVADO INMEDIATAMENTE
         if (configDAO.obtenerValorBoolean(ConfiguracionDAO.WHATSAPP_HABILITADO)) {
-            this.whatsAppService = new TwilioWhatsAppService(); // Twilio en lugar de CallMeBot
-            System.out.println("📱 WhatsApp REAL activado (Twilio)");
+            this.whatsAppService = new WhatsappService(); // Evolution API (gratis, sin límites)
+            System.out.println("📱 WhatsApp REAL activado (Evolution API)");
         } else {
             this.whatsAppService = new WhatsAppServiceMock();
             System.out.println("📱 WhatsApp DESHABILITADO en configuración");
