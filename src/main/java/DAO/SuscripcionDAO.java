@@ -13,8 +13,8 @@ public class SuscripcionDAO {
 
         // --- CORRECCIÓN AQUÍ ---
         // Antes tenías: s.direccion_i
-        String sql = "SELECT s.id_suscripcion, s.codigo_contrato, s.direccion_instalacion, s.fecha_inicio, s.activo, s.garantia, s.sector, "
-                + "c.nombres, c.apellidos, c.dni, c.telefono, sv.descripcion, sv.mensualidad, s.mes_adelantado, s.equipos_prestados "
+        String sql = "SELECT s.id_suscripcion, s.codigo_contrato, s.direccion_instalacion, s.fecha_inicio, s.activo, s.garantia, "
+                + "c.nombres, c.apellidos, sv.descripcion, sv.mensualidad "
                 + "FROM suscripcion s "
                 + "INNER JOIN cliente c ON s.id_cliente = c.id_cliente "
                 + "INNER JOIN servicio sv ON s.id_servicio = sv.id_servicio "
@@ -39,14 +39,11 @@ public class SuscripcionDAO {
 
                     sus.setFechaInicio(rs.getDate("fecha_inicio"));
                     sus.setActivo(rs.getInt("activo"));
-                    sus.setSector(rs.getString("sector")); // <--- AÑADIDO
 
                     sus.setGarantia(rs.getDouble("garantia")); // <--- AÑADE ESTA LÍNEA
 
                     // Datos Extras del JOIN
                     sus.setNombreCliente(rs.getString("nombres") + " " + rs.getString("apellidos"));
-                    sus.setDniCliente(rs.getString("dni"));
-                    sus.setTelefonoCliente(rs.getString("telefono"));
                     sus.setNombreServicio(rs.getString("descripcion"));
                     sus.setMontoMensual(rs.getDouble("mensualidad"));
                     // Dentro del while(rs.next()) de listarPaginado y listarTodo:
@@ -64,28 +61,27 @@ public class SuscripcionDAO {
     /**
      * Guarda un contrato NUEVO o ACTUALIZA uno existente con todos los campos.
      * Soporta cambio de titular, fecha inicio y día de pago.
-     * 
-     * @return El ID de la suscripción creada/actualizada, o -1 si falla.
      */
-    public int guardarOActualizarContrato(int idSuscripcion, int idServicio, String direccion, int idCliente,
+    // EN: DAO/SuscripcionDAO.java
+    public boolean guardarOActualizarContrato(int idSuscripcion, int idServicio, String direccion, int idCliente,
             java.util.Date fechaInicio, int diaPago,
             boolean mesAdelantado, boolean equiposPrestados, double garantia,
-            String nombreSuscripcion, String sector) { // Agregado sector
+            String nombreSuscripcion) { // <--- NUEVO PARÁMETRO
         String sql;
         boolean esNuevo = (idSuscripcion == -1);
 
         if (esNuevo) {
             sql = "INSERT INTO suscripcion (id_servicio, direccion_instalacion, id_cliente, fecha_inicio, dia_pago, "
-                    + "mes_adelantado, equipos_prestados, garantia, codigo_contrato, activo, nombre_suscripcion, sector) "
-                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)";
+                    + "mes_adelantado, equipos_prestados, garantia, codigo_contrato, activo, nombre_suscripcion) "
+                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)";
         } else {
             sql = "UPDATE suscripcion SET id_servicio = ?, direccion_instalacion = ?, id_cliente = ?, fecha_inicio = ?, dia_pago = ?, "
-                    + "mes_adelantado = ?, equipos_prestados = ?, garantia = ?, nombre_suscripcion = ?, sector = ? "
+                    + "mes_adelantado = ?, equipos_prestados = ?, garantia = ?, nombre_suscripcion = ? "
                     + "WHERE id_suscripcion = ?";
         }
 
         try (java.sql.Connection conn = bd.Conexion.getConexion();
-                java.sql.PreparedStatement ps = conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
+                java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setInt(1, idServicio);
             ps.setString(2, direccion);
@@ -102,34 +98,18 @@ public class SuscripcionDAO {
             if (esNuevo) {
                 String codigo = "CNT-" + System.currentTimeMillis();
                 ps.setString(9, codigo);
-                ps.setString(10, nombreSuscripcion);
-                ps.setString(11, sector); // Sector
+                ps.setString(10, nombreSuscripcion); // nombre_suscripcion
             } else {
-                ps.setString(9, nombreSuscripcion);
-                ps.setString(10, sector); // Sector
-                ps.setInt(11, idSuscripcion);
+                ps.setString(9, nombreSuscripcion); // nombre_suscripcion
+                ps.setInt(10, idSuscripcion);
             }
 
-            int affected = ps.executeUpdate();
-
-            if (affected > 0) {
-                if (esNuevo) {
-                    // Obtener ID generado
-                    try (java.sql.ResultSet rs = ps.getGeneratedKeys()) {
-                        if (rs.next()) {
-                            return rs.getInt(1);
-                        }
-                    }
-                } else {
-                    return idSuscripcion; // Retornar el mismo ID si es actualización
-                }
-            }
-            return -1;
+            return ps.executeUpdate() > 0;
 
         } catch (Exception e) {
             System.err.println("Error al guardar/actualizar contrato: " + e.getMessage());
             e.printStackTrace();
-            return -1;
+            return false;
         }
     }
 
@@ -253,39 +233,7 @@ public class SuscripcionDAO {
                 + "s.activo, s.sector, s.dia_pago, s.garantia, "
                 + "s.mes_adelantado, s.equipos_prestados, s.nombre_suscripcion, "
                 + "c.nombres, c.apellidos, sv.descripcion, sv.mensualidad, "
-                + "(SELECT COUNT(*) FROM factura f WHERE f.id_suscripcion = s.id_suscripcion AND f.id_estado = 1) as f_pend, "
-                // Historial por mes: usa periodo_mes (ej: "Enero 2026", "Diciembre 2025")
-                // Busca por nombre del mes en español usando ELT()
-                + "(SELECT COALESCE("
-                + "  (SELECT CASE WHEN id_estado = 2 THEN '1' ELSE '0' END FROM factura "
-                + "   WHERE id_suscripcion = s.id_suscripcion "
-                + "   AND LOWER(periodo_mes) LIKE CONCAT('%', LOWER(ELT(MONTH(DATE_SUB(CURDATE(), INTERVAL 4 MONTH)),'enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre')), '%')"
-                + "   AND LOWER(periodo_mes) LIKE CONCAT('%', YEAR(DATE_SUB(CURDATE(), INTERVAL 4 MONTH)), '%') LIMIT 1), '2')) as m1, "
-                + "(SELECT COALESCE("
-                + "  (SELECT CASE WHEN id_estado = 2 THEN '1' ELSE '0' END FROM factura "
-                + "   WHERE id_suscripcion = s.id_suscripcion "
-                + "   AND LOWER(periodo_mes) LIKE CONCAT('%', LOWER(ELT(MONTH(DATE_SUB(CURDATE(), INTERVAL 3 MONTH)),'enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre')), '%')"
-                + "   AND LOWER(periodo_mes) LIKE CONCAT('%', YEAR(DATE_SUB(CURDATE(), INTERVAL 3 MONTH)), '%') LIMIT 1), '2')) as m2, "
-                + "(SELECT COALESCE("
-                + "  (SELECT CASE WHEN id_estado = 2 THEN '1' ELSE '0' END FROM factura "
-                + "   WHERE id_suscripcion = s.id_suscripcion "
-                + "   AND LOWER(periodo_mes) LIKE CONCAT('%', LOWER(ELT(MONTH(DATE_SUB(CURDATE(), INTERVAL 2 MONTH)),'enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre')), '%')"
-                + "   AND LOWER(periodo_mes) LIKE CONCAT('%', YEAR(DATE_SUB(CURDATE(), INTERVAL 2 MONTH)), '%') LIMIT 1), '2')) as m3, "
-                + "(SELECT COALESCE("
-                + "  (SELECT CASE WHEN id_estado = 2 THEN '1' ELSE '0' END FROM factura "
-                + "   WHERE id_suscripcion = s.id_suscripcion "
-                + "   AND LOWER(periodo_mes) LIKE CONCAT('%', LOWER(ELT(MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH)),'enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre')), '%')"
-                + "   AND LOWER(periodo_mes) LIKE CONCAT('%', YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH)), '%') LIMIT 1), '2')) as m4, "
-                + "(SELECT COALESCE("
-                + "  (SELECT CASE WHEN id_estado = 2 THEN '1' ELSE '0' END FROM factura "
-                + "   WHERE id_suscripcion = s.id_suscripcion "
-                + "   AND LOWER(periodo_mes) LIKE CONCAT('%', LOWER(ELT(MONTH(CURDATE()),'enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre')), '%')"
-                + "   AND LOWER(periodo_mes) LIKE CONCAT('%', YEAR(CURDATE()), '%') LIMIT 1), '2')) as m5, "
-                + "(SELECT COALESCE("
-                + "  (SELECT CASE WHEN id_estado = 2 THEN '1' ELSE '0' END FROM factura "
-                + "   WHERE id_suscripcion = s.id_suscripcion "
-                + "   AND LOWER(periodo_mes) LIKE CONCAT('%', LOWER(ELT(MONTH(DATE_ADD(CURDATE(), INTERVAL 1 MONTH)),'enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre')), '%')"
-                + "   AND LOWER(periodo_mes) LIKE CONCAT('%', YEAR(DATE_ADD(CURDATE(), INTERVAL 1 MONTH)), '%') LIMIT 1), '2')) as m6 "
+                + "(SELECT COUNT(*) FROM factura f WHERE f.id_suscripcion = s.id_suscripcion AND f.id_estado = 1) as f_pend "
                 + "FROM suscripcion s "
                 + "INNER JOIN cliente c ON s.id_cliente = c.id_cliente "
                 + "INNER JOIN servicio sv ON s.id_servicio = sv.id_servicio "
@@ -359,25 +307,16 @@ public class SuscripcionDAO {
                     int pendientes = rs.getInt("f_pend");
                     sus.setFacturasPendientes(pendientes);
 
-                    // Construir historial concatenando los 6 meses individuales
-                    // m1=hace 4 meses, m2=hace 3, m3=hace 2, m4=mes pasado, m5=mes actual,
-                    // m6=próximo mes
-                    String m1 = rs.getString("m1"); // Hace 4 meses
-                    String m2 = rs.getString("m2"); // Hace 3 meses
-                    String m3 = rs.getString("m3"); // Hace 2 meses
-                    String m4 = rs.getString("m4"); // Mes pasado
-                    String m5 = rs.getString("m5"); // Mes actual
-                    String m6 = rs.getString("m6"); // Próximo mes
-
-                    // Concatenar: orden de izquierda a derecha = más antiguo a más reciente
-                    String historialPagos = (m1 != null ? m1 : "2")
-                            + (m2 != null ? m2 : "2")
-                            + (m3 != null ? m3 : "2")
-                            + (m4 != null ? m4 : "2")
-                            + (m5 != null ? m5 : "2")
-                            + (m6 != null ? m6 : "2");
-
-                    sus.setHistorialPagos(historialPagos);
+                    // Historial visual
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 5; i >= 0; i--) {
+                        if (i < pendientes) {
+                            sb.append("0");
+                        } else {
+                            sb.append("1");
+                        }
+                    }
+                    sus.setHistorialPagos(sb.toString());
 
                     lista.add(sus);
                 }
@@ -468,19 +407,18 @@ public class SuscripcionDAO {
         return null;
     }
 
-    /**
+	    /**
      * Obtiene el DNI del cliente asociado a una suscripción.
-     * Útil para filtros de prueba.
      * 
      * @param idSuscripcion ID de la suscripción
      * @return DNI del cliente, o null si no se encuentra
      */
     public String obtenerDNICliente(int idSuscripcion) {
         String sql = "SELECT c.dni_cliente FROM cliente c " +
-                "INNER JOIN suscripcion s ON s.id_cliente = c.id_cliente " +
-                "WHERE s.id_suscripcion = ?";
-        try (Connection con = bd.Conexion.getConexion();
-                PreparedStatement ps = con.prepareStatement(sql)) {
+                     "INNER JOIN suscripcion s ON s.id_cliente = c.id_cliente " +
+                     "WHERE s.id_suscripcion = ?";
+        try (Connection con = Conexion.getConexion();
+             PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setInt(1, idSuscripcion);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) {
