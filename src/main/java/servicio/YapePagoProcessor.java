@@ -154,16 +154,17 @@ public class YapePagoProcessor {
             double monto, Date fechaOperacion) {
         try {
             // Buscar facturas pendientes del cliente
-            Object[][] deudas = pagoDAO.buscarDeudasPorCliente(dni);
+            List<Object[]> deudasList = pagoDAO.buscarDeudasPorCliente(dni);
 
-            if (deudas == null || deudas.length == 0) {
+            if (deudasList == null || deudasList.isEmpty()) {
                 System.out.println("   ℹ️ Cliente " + nombreCliente + " no tiene deudas pendientes");
                 return false;
             }
 
             // Registrar pago en la primera factura pendiente
-            int idFactura = (int) deudas[0][0];
-            double montoFactura = (double) deudas[0][6];
+            Object[] primeraDeuda = deudasList.get(0);
+            int idFactura = (int) primeraDeuda[0];
+            double montoFactura = (double) primeraDeuda[6];
 
             // Realizar cobro
             boolean exito = pagoDAO.realizarCobro(idFactura, monto, idUsuarioSistema);
