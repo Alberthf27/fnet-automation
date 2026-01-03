@@ -2,6 +2,7 @@ package servicio;
 
 import DAO.ClienteDAO;
 import DAO.PagoDAO;
+import DAO.YapeConfigDAO;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
@@ -20,11 +21,15 @@ public class YapePagoProcessor {
 
     private final ClienteDAO clienteDAO;
     private final PagoDAO pagoDAO;
+    private final YapeConfigDAO yapeConfigDAO;
     private final int idUsuarioSistema = 1; // Usuario "Sistema" para pagos automáticos
+    private Date ultimaFechaProcesada;
+    private Date nuevaUltimaFecha;
 
     public YapePagoProcessor() {
         this.clienteDAO = new ClienteDAO();
         this.pagoDAO = new PagoDAO();
+        this.yapeConfigDAO = new YapeConfigDAO();
     }
 
     /**
@@ -37,6 +42,18 @@ public class YapePagoProcessor {
         ResumenProcesamiento resumen = new ResumenProcesamiento();
 
         System.out.println("\n📊 Procesando Excel: " + archivoExcel.getName());
+
+        // Obtener última fecha procesada para evitar duplicados
+        ultimaFechaProcesada = yapeConfigDAO.obtenerUltimaFechaProcesada();
+        nuevaUltimaFecha = ultimaFechaProcesada;
+
+        if (ultimaFechaProcesada != null) {
+            SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss");
+            System.out.println("📅 Última fecha procesada: " + sdf.format(ultimaFechaProcesada));
+            System.out.println("   Solo se procesarán transacciones posteriores a esta fecha.");
+        } else {
+            System.out.println("📅 Primera vez procesando - se procesarán todas las transacciones");
+        }
 
         try (FileInputStream fis = new FileInputStream(archivoExcel);
                 Workbook workbook = new XSSFWorkbook(fis)) {
@@ -67,6 +84,12 @@ public class YapePagoProcessor {
             e.printStackTrace();
         }
 
+        // Actualizar última fecha procesada si hubo transacciones nuevas
+        if (nuevaUltimaFecha != null
+                && (ultimaFechaProcesada == null || nuevaUltimaFecha.after(ultimaFechaProcesada))) {
+            yapeConfigDAO.actualizarUltimaFechaProcesada(nuevaUltimaFecha);
+        }
+
         mostrarResumen(resumen);
         return resumen;
     }
@@ -91,6 +114,17 @@ public class YapePagoProcessor {
         Date fechaOperacion = getCellValueAsDate(fila.getCell(5));
 
         resumen.totalFilas++;
+
+        // Filtrar transacciones ya procesadas
+        if (ultimaFechaProcesada != null && !fechaOperacion.after(ultimaFechaProcesada)) {
+            resumen.yaProcesados++;
+            return; // Ya fue procesada anteriormente
+        }
+
+        // Actualizar la fecha más reciente encontrada
+        if (nuevaUltimaFecha == null || fechaOperacion.after(nuevaUltimaFecha)) {
+            nuevaUltimaFecha = fechaOperacion;
+        }
 
         // Solo procesar pagos recibidos (PAGASTE significa que te pagaron)
         if (!"PAGASTE".equalsIgnoreCase(tipoTransaccion)) {
@@ -215,6 +249,7 @@ public class YapePagoProcessor {
         System.out.println("=".repeat(60));
         System.out.println("   📋 Total de filas: " + resumen.totalFilas);
         System.out.println("   ✅ Pagos registrados: " + resumen.pagosRegistrados);
+        System.out.println("   🔄 Ya procesados (duplicados): " + resumen.yaProcesados);
         System.out.println("   ⏭️ Ignorados (no son pagos): " + resumen.ignorados);
         System.out.println("   📝 Sin DNI en mensaje: " + resumen.sinDNI);
         System.out.println("   ⚠️ DNI no encontrado: " + resumen.dniNoEncontrado);
@@ -286,5 +321,6 @@ public class YapePagoProcessor {
         public int sinDNI = 0;
         public int dniNoEncontrado = 0;
         public int errores = 0;
+        public int yaProcesados = 0; // Transacciones ya procesadas anteriormente
     }
 }
