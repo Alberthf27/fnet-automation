@@ -135,7 +135,9 @@ public class PagoDAO {
             LocalDate fechaInicio, fechaFin, fechaVencimiento;
             String nombrePeriodo, rangoPeriodo;
             DateTimeFormatter fmtMes = DateTimeFormatter.ofPattern("MMMM yyyy", new Locale("es", "ES"));
-            DateTimeFormatter fmtCorto = DateTimeFormatter.ofPattern("dd/MM/yy");
+            DateTimeFormatter fmtRango = DateTimeFormatter.ofPattern("dd MMM", new Locale("es", "ES")); // Formato
+                                                                                                        // legible: "17
+                                                                                                        // dic"
 
             if (esMesAdelantado) {
                 // PREPAGO: Cobra período ADELANTE
@@ -170,8 +172,8 @@ public class PagoDAO {
                 nombrePeriodo = mesNombre.substring(0, 1).toUpperCase() + mesNombre.substring(1).toLowerCase();
             }
 
-            // Formato del rango: "20/12/25 - 20/01/26"
-            rangoPeriodo = fechaInicio.format(fmtCorto) + " - " + fechaFin.format(fmtCorto);
+            // Formato del rango: "17 dic - 17 ene"
+            rangoPeriodo = fechaInicio.format(fmtRango) + " - " + fechaFin.format(fmtRango);
 
             // DEBUG: Mostrar qué periodo se está calculando
             System.out.println("   🔍 DEBUG Suscripción " + idSuscripcion + ":");
@@ -350,7 +352,7 @@ public class PagoDAO {
         String sql = "SELECT id_factura, periodo_mes, fecha_vencimiento, monto_total, monto_pagado, fecha_pago, id_estado, "
                 +
                 "COALESCE(rango_periodo, '') as rango_periodo " +
-                "FROM factura WHERE id_suscripcion = ? ORDER BY fecha_vencimiento DESC";
+                "FROM factura WHERE id_suscripcion = ? ORDER BY fecha_emision DESC, id_factura DESC";
 
         try (Connection conn = Conexion.getConexion();
                 PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -687,5 +689,64 @@ public class PagoDAO {
         }
 
         return 0;
+    }
+
+    /**
+     * Obtiene información de la última factura generada para una suscripción.
+     * Retorna formato: "del mes de Enero 2026 (02 Ene - 02 Feb)"
+     */
+    public String obtenerUltimaFacturaInfo(int idSuscripcion) {
+        String sql = "SELECT periodo_mes, rango_periodo FROM factura " +
+                "WHERE id_suscripcion = ? ORDER BY id_factura DESC LIMIT 1";
+
+        try (Connection con = bd.Conexion.getConexion();
+                PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, idSuscripcion);
+            ResultSet rs = ps.executeQuery();
+
+            if (rs.next()) {
+                String periodoMes = rs.getString("periodo_mes");
+                String rangoPeriodo = rs.getString("rango_periodo");
+                return "del mes de " + periodoMes + " (" + rangoPeriodo + ")";
+            }
+        } catch (SQLException e) {
+            System.err.println("Error obteniendo info de factura: " + e.getMessage());
+        }
+
+        return "del mes actual";
+    }
+
+    /**
+     * Obtiene el detalle de todas las facturas pendientes de una suscripción.
+     * Retorna formato: "• Enero 2026 (02 Ene - 02 Feb): S/. 50.00\n• Febrero
+     * 2026..."
+     */
+    public String obtenerFacturasPendientesDetalle(int idSuscripcion) {
+        String sql = "SELECT periodo_mes, rango_periodo, monto FROM factura " +
+                "WHERE id_suscripcion = ? AND estado = 1 " +
+                "ORDER BY fecha_emision ASC";
+
+        StringBuilder detalle = new StringBuilder();
+
+        try (Connection con = bd.Conexion.getConexion();
+                PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, idSuscripcion);
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+                String periodoMes = rs.getString("periodo_mes");
+                String rangoPeriodo = rs.getString("rango_periodo");
+                double monto = rs.getDouble("monto");
+
+                detalle.append("• ").append(periodoMes)
+                        .append(" (").append(rangoPeriodo).append("): S/. ")
+                        .append(String.format("%.2f", monto))
+                        .append("\n");
+            }
+        } catch (SQLException e) {
+            System.err.println("Error obteniendo facturas pendientes: " + e.getMessage());
+        }
+
+        return detalle.toString().trim();
     }
 }

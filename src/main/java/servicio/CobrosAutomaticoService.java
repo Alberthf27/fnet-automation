@@ -150,12 +150,26 @@ public class CobrosAutomaticoService {
                         boolean esPrueba = "44085317".equals(dni);
 
                         if (esPrueba) {
-                            // NOTIFICACIÓN MENSUAL: Siempre enviar cuando se genera factura
-                            String periodo = mensajeService.formatearPeriodo(LocalDate.now());
-                            String mensajePago = String.format(
-                                    "Hola %s, te recordamos que ya está disponible tu pago del mes de %s por S/. %.2f. ¡Gracias!",
-                                    nombreCliente, periodo, monto);
-                            whatsAppService.enviarMensaje(telefono, mensajePago);
+                            // Obtener información de la factura recién generada
+                            String facturaInfo = pagoDAO.obtenerUltimaFacturaInfo(idSuscripcion);
+
+                            // Obtener lista de facturas pendientes
+                            String facturasPendientesDetalle = pagoDAO.obtenerFacturasPendientesDetalle(idSuscripcion);
+
+                            // Construir mensaje mejorado
+                            StringBuilder mensaje = new StringBuilder();
+                            mensaje.append("Hola ").append(nombreCliente).append(", ");
+                            mensaje.append("te recordamos que ya está disponible tu pago ").append(facturaInfo);
+                            mensaje.append(" por S/. ").append(String.format("%.2f", monto)).append(".");
+
+                            // Agregar facturas pendientes si hay más de una
+                            if (facturasPendientes > 1) {
+                                mensaje.append("\n\n📋 Facturas pendientes:\n").append(facturasPendientesDetalle);
+                            }
+
+                            mensaje.append("\n\n¡Gracias!");
+
+                            whatsAppService.enviarMensaje(telefono, mensaje.toString());
                             notificacionesProgramadas++;
                             System.out.println("   📱 Notificación enviada a cliente de prueba: " + nombreCliente);
                         } else {
