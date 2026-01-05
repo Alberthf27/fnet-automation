@@ -50,37 +50,80 @@ public class PagoDAO {
         return lista;
     }
 
-    // 2. Realizar Cobro (Igual que antes, lo mantienes)
+    // 2. Realizar Cobro - Mejorado para soportar pagos parciales y registrar en
+    // tabla pago
     public boolean realizarCobro(int idFactura, double monto, int idUsuario) {
-        // ... (Tu código actual de cobrar está bien) ...
-        // Solo asegúrate de que use id_estado = 2 para PAGADO
+        return realizarCobro(idFactura, monto, idUsuario, "EFECTIVO");
+    }
+
+    // Sobrecarga con método de pago
+    public boolean realizarCobro(int idFactura, double monto, int idUsuario, String metodoPago) {
         Connection conn = null;
         try {
             conn = Conexion.getConexion();
             conn.setAutoCommit(false);
 
-            String sql1 = "UPDATE factura SET id_estado = 2, monto_pagado = ? WHERE id_factura = ?";
-            try (PreparedStatement ps1 = conn.prepareStatement(sql1)) {
-                ps1.setDouble(1, monto);
-                ps1.setInt(2, idFactura);
-                ps1.executeUpdate();
+            // 1. Obtener monto total de la factura y monto ya pagado
+            String sqlConsulta = "SELECT monto, COALESCE(monto_pagado, 0) as monto_pagado FROM factura WHERE id_factura = ?";
+            double montoTotal = 0;
+            double montoPagadoAnterior = 0;
+
+            try (PreparedStatement psConsulta = conn.prepareStatement(sqlConsulta)) {
+                psConsulta.setInt(1, idFactura);
+                ResultSet rs = psConsulta.executeQuery();
+                if (rs.next()) {
+                    montoTotal = rs.getDouble("monto");
+                    montoPagadoAnterior = rs.getDouble("monto_pagado");
+                }
             }
 
-            String sql2 = "INSERT INTO movimiento_caja (fecha, monto, descripcion, id_categoria, id_usuario) VALUES (NOW(), ?, CONCAT('Cobro Factura #', ?), 1, ?)";
-            try (PreparedStatement ps2 = conn.prepareStatement(sql2)) {
-                ps2.setDouble(1, monto);
-                ps2.setInt(2, idFactura);
-                ps2.setInt(3, idUsuario);
-                ps2.executeUpdate();
+            // 2. Calcular nuevo monto pagado
+            double nuevoMontoPagado = montoPagadoAnterior + monto;
+            boolean pagadoCompleto = nuevoMontoPagado >= montoTotal;
+
+            // 3. Actualizar factura (monto_pagado y estado si está completo)
+            String sqlFactura;
+            if (pagadoCompleto) {
+                sqlFactura = "UPDATE factura SET id_estado = 2, monto_pagado = ?, fecha_pago = NOW() WHERE id_factura = ?";
+            } else {
+                sqlFactura = "UPDATE factura SET monto_pagado = ? WHERE id_factura = ?";
             }
+
+            try (PreparedStatement psFactura = conn.prepareStatement(sqlFactura)) {
+                psFactura.setDouble(1, nuevoMontoPagado);
+                psFactura.setInt(2, idFactura);
+                psFactura.executeUpdate();
+            }
+
+            // 4. Registrar en tabla PAGO (usando columnas reales de la tabla)
+            String sqlPago = "INSERT INTO pago (monto, fecha_pago, metodo_pago, id_empleado) VALUES (?, NOW(), ?, ?)";
+            try (PreparedStatement psPago = conn.prepareStatement(sqlPago)) {
+                psPago.setDouble(1, monto);
+                psPago.setString(2, metodoPago);
+                psPago.setInt(3, idUsuario);
+                psPago.executeUpdate();
+            }
+
+            // 5. Registrar en movimiento_caja
+            String sqlCaja = "INSERT INTO movimiento_caja (fecha, monto, descripcion, id_categoria, id_usuario) " +
+                    "VALUES (NOW(), ?, CONCAT('Cobro Factura #', ?), 1, ?)";
+            try (PreparedStatement psCaja = conn.prepareStatement(sqlCaja)) {
+                psCaja.setDouble(1, monto);
+                psCaja.setInt(2, idFactura);
+                psCaja.setInt(3, idUsuario);
+                psCaja.executeUpdate();
+            }
+
             conn.commit();
             return true;
+
         } catch (Exception e) {
             try {
                 if (conn != null)
                     conn.rollback();
             } catch (Exception ex) {
             }
+            e.printStackTrace();
             return false;
         } finally {
             try {
@@ -203,12 +246,12 @@ public class PagoDAO {
                 }
             }
 
-            // F. Insertar Factura (con rango_periodo)
+            // F. Insertar Factura (con rango_periodo) - codigo_factura se actualiza después
             String sqlInsert = "INSERT INTO factura (id_suscripcion, fecha_emision, fecha_vencimiento, monto_total, monto_pagado, id_estado, codigo_factura, periodo_mes, rango_periodo) "
                     +
-                    "VALUES (?, NOW(), ?, ?, 0.00, 1, CONCAT('F-', FLOOR(RAND()*100000)), ?, ?)";
+                    "VALUES (?, NOW(), ?, ?, 0.00, 1, '', ?, ?)";
 
-            try (PreparedStatement ps = conn.prepareStatement(sqlInsert)) {
+            try (PreparedStatement ps = conn.prepareStatement(sqlInsert, java.sql.Statement.RETURN_GENERATED_KEYS)) {
                 ps.setInt(1, idSuscripcion);
                 ps.setDate(2, java.sql.Date.valueOf(fechaVencimiento));
                 ps.setDouble(3, montoMensual);
@@ -216,9 +259,24 @@ public class PagoDAO {
                 ps.setString(5, rangoPeriodo);
 
                 boolean insertado = ps.executeUpdate() > 0;
+
                 if (insertado) {
+                    // Obtener el id_factura generado y actualizar codigo_factura
+                    ResultSet rsKeys = ps.getGeneratedKeys();
+                    if (rsKeys.next()) {
+                        int idFactura = rsKeys.getInt(1);
+                        String codigoFactura = String.format("%04d", idFactura); // 0001, 0002, etc.
+
+                        String sqlUpdateCodigo = "UPDATE factura SET codigo_factura = ? WHERE id_factura = ?";
+                        try (PreparedStatement psUpd = conn.prepareStatement(sqlUpdateCodigo)) {
+                            psUpd.setString(1, codigoFactura);
+                            psUpd.setInt(2, idFactura);
+                            psUpd.executeUpdate();
+                        }
+                    }
+
                     String tipo = esMesAdelantado ? "PREPAGO" : "POSTPAGO";
-                    System.out.println("   ✅ [" + tipo + "] " + nombrePeriodo + " (" + rangoPeriodo + ")");
+                    System.out.println("   [" + tipo + "] " + nombrePeriodo + " (" + rangoPeriodo + ")");
                 }
                 return insertado;
             }
@@ -723,7 +781,7 @@ public class PagoDAO {
      */
     public String obtenerFacturasPendientesDetalle(int idSuscripcion) {
         String sql = "SELECT periodo_mes, rango_periodo, monto FROM factura " +
-                "WHERE id_suscripcion = ? AND estado = 1 " +
+                "WHERE id_suscripcion = ? AND id_estado = 1 " +
                 "ORDER BY fecha_emision ASC";
 
         StringBuilder detalle = new StringBuilder();
@@ -748,5 +806,100 @@ public class PagoDAO {
         }
 
         return detalle.toString().trim();
+    }
+
+    /**
+     * Obtiene los movimientos de caja del día actual.
+     * Retorna: [fecha_pago, cliente, concepto, metodo_pago, monto]
+     * 
+     * Primero intenta usar la tabla 'pago' (más precisa).
+     * Si la tabla no existe, usa 'movimiento_caja' como fallback.
+     */
+    public Object[][] obtenerMovimientosDelDia() {
+        java.util.List<Object[]> movimientos = new java.util.ArrayList<>();
+
+        // Usar movimiento_caja que tiene la info completa de cobros
+        // La tabla pago no tiene id_factura para hacer JOIN con clientes
+        String sql = "SELECT mc.fecha, mc.descripcion, mc.monto " +
+                "FROM movimiento_caja mc " +
+                "WHERE DATE(mc.fecha) = CURDATE() " +
+                "AND mc.id_categoria = 1 " + // Categoria 1 = Cobros
+                "ORDER BY mc.fecha DESC";
+
+        try (Connection con = bd.Conexion.getConexion();
+                PreparedStatement ps = con.prepareStatement(sql);
+                ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                String descripcion = rs.getString("descripcion");
+                String metodo = "EFECTIVO";
+
+                // Detectar método de pago por descripción
+                if (descripcion != null && descripcion.toUpperCase().contains("YAPE")) {
+                    metodo = "YAPE";
+                }
+
+                movimientos.add(new Object[] {
+                        rs.getTimestamp("fecha"),
+                        descripcion, // cliente/concepto
+                        descripcion, // concepto
+                        metodo,
+                        rs.getDouble("monto")
+                });
+            }
+        } catch (SQLException e) {
+            System.err.println("Error obteniendo movimientos del día: " + e.getMessage());
+        }
+
+        return movimientos.toArray(new Object[0][]);
+    }
+
+    /**
+     * Fallback: Obtiene movimientos del día desde movimiento_caja.
+     * Usado cuando la tabla 'pago' no tiene la estructura esperada.
+     */
+    private Object[][] obtenerMovimientosDelDiaFallback() {
+        java.util.List<Object[]> movimientos = new java.util.ArrayList<>();
+
+        // Consulta simplificada usando solo movimiento_caja
+        // La descripción contiene info como "Cobro Factura #123" o "Pago - Enero 2026
+        // (Factura #456)"
+        String sql = "SELECT mc.fecha, mc.descripcion, mc.monto " +
+                "FROM movimiento_caja mc " +
+                "WHERE DATE(mc.fecha) = CURDATE() " +
+                "AND mc.id_categoria = 1 " + // Solo ingresos de cobros
+                "ORDER BY mc.fecha DESC";
+
+        try (Connection con = bd.Conexion.getConexion();
+                PreparedStatement ps = con.prepareStatement(sql);
+                ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                String descripcion = rs.getString("descripcion");
+
+                // Extraer nombre de cliente de la descripción si es posible
+                // Formato esperado: "Cobro Factura #123" o similar
+                String cliente = descripcion;
+                String concepto = descripcion;
+                String metodo = "EFECTIVO";
+
+                // Si la descripción menciona Yape, marcar como tal
+                if (descripcion != null && descripcion.toUpperCase().contains("YAPE")) {
+                    metodo = "YAPE";
+                }
+
+                movimientos.add(new Object[] {
+                        rs.getTimestamp("fecha"),
+                        cliente,
+                        concepto,
+                        metodo,
+                        rs.getDouble("monto")
+                });
+            }
+        } catch (SQLException e) {
+            System.err.println("Error obteniendo movimientos (fallback): " + e.getMessage());
+        }
+
+        return movimientos.toArray(new Object[0][]);
     }
 }
