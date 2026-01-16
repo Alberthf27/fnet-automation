@@ -350,73 +350,85 @@ public class CobrosAutomaticoService {
      * Procesa la cola de notificaciones pendientes y las envía.
      */
     public void procesarNotificacionesPendientes() {
-        System.out.println("\n📤 Procesando notificaciones pendientes...");
+    System.out.println("\n⚠️ ========================================");
+    System.out.println("⚠️ ENVÍO AUTOMÁTICO DE WHATSAPP DESHABILITADO");
+    System.out.println("📤 Exportar desde: FNET Local → Módulo Mensajes → CSV → WATI");
+    System.out.println("💡 Motivo: Evolution API bloqueado por Railway");
+    System.out.println("✅ Generación de notificaciones: ACTIVA");
+    System.out.println("✅ Cortes automáticos: ACTIVOS");
+    System.out.println("⚠️ ========================================\n");
+    
+    return; // ← Deshabilita el envío
+    
+    /* CÓDIGO ORIGINAL PRESERVADO
+    System.out.println("\n📤 Procesando notificaciones pendientes...");
 
-        // MODO PRUEBA: Notificaciones habilitadas SOLO para DNI 44085317
-        // Fecha de activación general: 10 de Enero 2026
-        LocalDate fechaActivacion = LocalDate.of(2026, 1, 10);
-        boolean modoPrueba = LocalDate.now().isBefore(fechaActivacion);
+    // MODO PRUEBA: Notificaciones habilitadas SOLO para DNI 44085317
+    // Fecha de activación general: 10 de Enero 2026
+    LocalDate fechaActivacion = LocalDate.of(2026, 1, 10);
+    boolean modoPrueba = LocalDate.now().isBefore(fechaActivacion);
 
-        if (modoPrueba) {
-            System.out.println("   🧪 MODO PRUEBA ACTIVO");
-            System.out.println("   ⏳ Notificaciones generales deshabilitadas hasta " + fechaActivacion);
-            System.out.println("   ✅ Solo se enviarán notificaciones al cliente DNI: 44085317");
-        }
-
-        List<NotificacionPendiente> pendientes = notificacionDAO.obtenerPendientes();
-
-        int enviados = 0;
-        int sinTelefono = 0;
-        int errores = 0;
-        int filtrados = 0;
-
-        for (NotificacionPendiente n : pendientes) {
-            // FILTRO DE PRUEBA: Solo enviar a DNI 44085317 si estamos en modo prueba
-            if (modoPrueba) {
-                // Obtener DNI del cliente desde la suscripción
-                String dniCliente = suscripcionDAO.obtenerDNICliente(n.getIdSuscripcion());
-                if (!"44085317".equals(dniCliente)) {
-                    filtrados++;
-                    continue; // Saltar este cliente
-                }
-                System.out.println("   🎯 Cliente de prueba detectado (DNI: 44085317) - Enviando notificación...");
-            }
-
-            if (!n.tieneTelefono()) {
-                notificacionDAO.marcarSinTelefono(n.getIdNotificacion());
-                alertaDAO.crearAlertaSinTelefono(
-                        n.getIdSuscripcion(),
-                        n.getNombreCliente(),
-                        n.getCodigoContrato());
-                sinTelefono++;
-                continue;
-            }
-
-            boolean exito = whatsAppService.enviarMensaje(n.getTelefono(), n.getMensaje());
-
-            if (exito) {
-                notificacionDAO.marcarComoEnviada(n.getIdNotificacion());
-                enviados++;
-
-                // Si era RECORDATORIO, programar ULTIMÁTUM
-                if (n.getTipo() == TipoNotificacion.RECORDATORIO) {
-                    int plazoDias = configDAO.obtenerValorInt(ConfiguracionDAO.PLAZO_PAGO_DIAS, 21);
-                    programarUltimatum(n.getIdSuscripcion(), n.getNombreCliente(),
-                            n.getTelefono(), plazoDias);
-                }
-            } else {
-                notificacionDAO.marcarComoError(n.getIdNotificacion());
-                errores++;
-            }
-        }
-
-        System.out.println("   ✅ Enviados: " + enviados);
-        if (modoPrueba && filtrados > 0) {
-            System.out.println("   🚫 Filtrados (modo prueba): " + filtrados);
-        }
-        System.out.println("   📵 Sin teléfono: " + sinTelefono);
-        System.out.println("   ❌ Errores: " + errores);
+    if (modoPrueba) {
+        System.out.println("   🧪 MODO PRUEBA ACTIVO");
+        System.out.println("   ⏳ Notificaciones generales deshabilitadas hasta " + fechaActivacion);
+        System.out.println("   ✅ Solo se enviarán notificaciones al cliente DNI: 44085317");
     }
+
+    List<NotificacionPendiente> pendientes = notificacionDAO.obtenerPendientes();
+
+    int enviados = 0;
+    int sinTelefono = 0;
+    int errores = 0;
+    int filtrados = 0;
+
+    for (NotificacionPendiente n : pendientes) {
+        // FILTRO DE PRUEBA: Solo enviar a DNI 44085317 si estamos en modo prueba
+        if (modoPrueba) {
+            // Obtener DNI del cliente desde la suscripción
+            String dniCliente = suscripcionDAO.obtenerDNICliente(n.getIdSuscripcion());
+            if (!"44085317".equals(dniCliente)) {
+                filtrados++;
+                continue; // Saltar este cliente
+            }
+            System.out.println("   🎯 Cliente de prueba detectado (DNI: 44085317) - Enviando notificación...");
+        }
+
+        if (!n.tieneTelefono()) {
+            notificacionDAO.marcarSinTelefono(n.getIdNotificacion());
+            alertaDAO.crearAlertaSinTelefono(
+                    n.getIdSuscripcion(),
+                    n.getNombreCliente(),
+                    n.getCodigoContrato());
+            sinTelefono++;
+            continue;
+        }
+
+        boolean exito = whatsAppService.enviarMensaje(n.getTelefono(), n.getMensaje());
+
+        if (exito) {
+            notificacionDAO.marcarComoEnviada(n.getIdNotificacion());
+            enviados++;
+
+            // Si era RECORDATORIO, programar ULTIMÁTUM
+            if (n.getTipo() == TipoNotificacion.RECORDATORIO) {
+                int plazoDias = configDAO.obtenerValorInt(ConfiguracionDAO.PLAZO_PAGO_DIAS, 21);
+                programarUltimatum(n.getIdSuscripcion(), n.getNombreCliente(),
+                        n.getTelefono(), plazoDias);
+            }
+        } else {
+            notificacionDAO.marcarComoError(n.getIdNotificacion());
+            errores++;
+        }
+    }
+
+    System.out.println("   ✅ Enviados: " + enviados);
+    if (modoPrueba && filtrados > 0) {
+        System.out.println("   🚫 Filtrados (modo prueba): " + filtrados);
+    }
+    System.out.println("   📵 Sin teléfono: " + sinTelefono);
+    System.out.println("   ❌ Errores: " + errores);
+    FIN CÓDIGO ORIGINAL */
+}
 
     /**
      * Programa una notificación de recordatorio.
