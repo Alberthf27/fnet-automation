@@ -50,37 +50,109 @@ public class PagoDAO {
         return lista;
     }
 
-    // 2. Realizar Cobro (Igual que antes, lo mantienes)
+    // 2. Realizar Cobro - Mejorado para soportar pagos parciales y registrar en
+    // tabla pago
     public boolean realizarCobro(int idFactura, double monto, int idUsuario) {
-        // ... (Tu código actual de cobrar está bien) ...
-        // Solo asegúrate de que use id_estado = 2 para PAGADO
+        return realizarCobro(idFactura, monto, idUsuario, "EFECTIVO");
+    }
+
+    // Sobrecarga con método de pago
+    public boolean realizarCobro(int idFactura, double monto, int idUsuario, String metodoPago) {
         Connection conn = null;
         try {
             conn = Conexion.getConexion();
             conn.setAutoCommit(false);
 
-            String sql1 = "UPDATE factura SET id_estado = 2, monto_pagado = ? WHERE id_factura = ?";
-            try (PreparedStatement ps1 = conn.prepareStatement(sql1)) {
-                ps1.setDouble(1, monto);
-                ps1.setInt(2, idFactura);
-                ps1.executeUpdate();
+            // 1. Obtener monto total de la factura y monto ya pagado
+            String sqlConsulta = "SELECT monto_total, COALESCE(monto_pagado, 0) as monto_pagado FROM factura WHERE id_factura = ?";
+            double montoTotal = 0;
+            double montoPagadoAnterior = 0;
+
+            try (PreparedStatement psConsulta = conn.prepareStatement(sqlConsulta)) {
+                psConsulta.setInt(1, idFactura);
+                ResultSet rs = psConsulta.executeQuery();
+                if (rs.next()) {
+                    montoTotal = rs.getDouble("monto_total");
+                    montoPagadoAnterior = rs.getDouble("monto_pagado");
+                }
             }
 
-            String sql2 = "INSERT INTO movimiento_caja (fecha, monto, descripcion, id_categoria, id_usuario) VALUES (NOW(), ?, CONCAT('Cobro Factura #', ?), 1, ?)";
-            try (PreparedStatement ps2 = conn.prepareStatement(sql2)) {
-                ps2.setDouble(1, monto);
-                ps2.setInt(2, idFactura);
-                ps2.setInt(3, idUsuario);
-                ps2.executeUpdate();
+            // 2. Calcular nuevo monto pagado
+            double nuevoMontoPagado = montoPagadoAnterior + monto;
+            boolean pagadoCompleto = nuevoMontoPagado >= montoTotal;
+
+            // 3. Actualizar factura (monto_pagado y estado si está completo)
+            String sqlFactura;
+            if (pagadoCompleto) {
+                sqlFactura = "UPDATE factura SET id_estado = 2, monto_pagado = ?, fecha_pago = ? WHERE id_factura = ?";
+            } else {
+                sqlFactura = "UPDATE factura SET monto_pagado = ? WHERE id_factura = ?";
             }
+
+            try (PreparedStatement psFactura = conn.prepareStatement(sqlFactura)) {
+                psFactura.setDouble(1, nuevoMontoPagado);
+                if (pagadoCompleto) {
+                    psFactura.setTimestamp(2, new java.sql.Timestamp(System.currentTimeMillis()));
+                    psFactura.setInt(3, idFactura);
+                } else {
+                    psFactura.setInt(2, idFactura);
+                }
+                psFactura.executeUpdate();
+            }
+
+            // 4. Registrar en tabla PAGO
+            int idMetodo = "YAPE".equalsIgnoreCase(metodoPago) ? 2 : 1;
+
+            String sqlPago = "INSERT INTO pago (id_factura, monto, fecha_pago, metodo_pago, id_metodo, id_empleado) VALUES (?, ?, ?, ?, ?, ?)";
+            try (PreparedStatement psPago = conn.prepareStatement(sqlPago)) {
+                psPago.setInt(1, idFactura);
+                psPago.setDouble(2, monto);
+                psPago.setTimestamp(3, new java.sql.Timestamp(System.currentTimeMillis()));
+                psPago.setString(4, metodoPago);
+                psPago.setInt(5, idMetodo);
+                psPago.setInt(6, idUsuario);
+                psPago.executeUpdate();
+            }
+
+            // 5. Obtener nombre del cliente y periodo para la descripción de caja
+            String nombreCliente = "";
+            String periodoMes = "";
+            String sqlCliente = "SELECT CONCAT(c.nombres, ' ', c.apellidos) as nombre_cliente, f2.periodo_mes " +
+                    "FROM factura f2 " +
+                    "JOIN suscripcion sus ON f2.id_suscripcion = sus.id_suscripcion " +
+                    "JOIN cliente c ON sus.id_cliente = c.id_cliente " +
+                    "WHERE f2.id_factura = ?";
+            try (PreparedStatement psCliente = conn.prepareStatement(sqlCliente)) {
+                psCliente.setInt(1, idFactura);
+                ResultSet rsCliente = psCliente.executeQuery();
+                if (rsCliente.next()) {
+                    nombreCliente = rsCliente.getString("nombre_cliente");
+                    periodoMes = rsCliente.getString("periodo_mes");
+                }
+            }
+
+            // 6. Registrar en movimiento_caja con datos completos
+            String descripcionCaja = nombreCliente + " | " + periodoMes + " | Factura #" + idFactura + " | " + metodoPago;
+            String sqlCaja = "INSERT INTO movimiento_caja (fecha, monto, descripcion, id_categoria, id_usuario) " +
+                    "VALUES (?, ?, ?, 1, ?)";
+            try (PreparedStatement psCaja = conn.prepareStatement(sqlCaja)) {
+                psCaja.setTimestamp(1, new java.sql.Timestamp(System.currentTimeMillis()));
+                psCaja.setDouble(2, monto);
+                psCaja.setString(3, descripcionCaja);
+                psCaja.setInt(4, idUsuario);
+                psCaja.executeUpdate();
+            }
+
             conn.commit();
             return true;
+
         } catch (Exception e) {
             try {
                 if (conn != null)
                     conn.rollback();
             } catch (Exception ex) {
             }
+            e.printStackTrace();
             return false;
         } finally {
             try {
@@ -203,12 +275,12 @@ public class PagoDAO {
                 }
             }
 
-            // F. Insertar Factura (con rango_periodo)
+            // F. Insertar Factura (con rango_periodo) - codigo_factura se actualiza después
             String sqlInsert = "INSERT INTO factura (id_suscripcion, fecha_emision, fecha_vencimiento, monto_total, monto_pagado, id_estado, codigo_factura, periodo_mes, rango_periodo) "
                     +
-                    "VALUES (?, NOW(), ?, ?, 0.00, 1, CONCAT('F-', FLOOR(RAND()*100000)), ?, ?)";
+                    "VALUES (?, NOW(), ?, ?, 0.00, 1, '', ?, ?)";
 
-            try (PreparedStatement ps = conn.prepareStatement(sqlInsert)) {
+            try (PreparedStatement ps = conn.prepareStatement(sqlInsert, java.sql.Statement.RETURN_GENERATED_KEYS)) {
                 ps.setInt(1, idSuscripcion);
                 ps.setDate(2, java.sql.Date.valueOf(fechaVencimiento));
                 ps.setDouble(3, montoMensual);
@@ -216,9 +288,24 @@ public class PagoDAO {
                 ps.setString(5, rangoPeriodo);
 
                 boolean insertado = ps.executeUpdate() > 0;
+
                 if (insertado) {
+                    // Obtener el id_factura generado y actualizar codigo_factura
+                    ResultSet rsKeys = ps.getGeneratedKeys();
+                    if (rsKeys.next()) {
+                        int idFactura = rsKeys.getInt(1);
+                        String codigoFactura = String.format("%04d", idFactura); // 0001, 0002, etc.
+
+                        String sqlUpdateCodigo = "UPDATE factura SET codigo_factura = ? WHERE id_factura = ?";
+                        try (PreparedStatement psUpd = conn.prepareStatement(sqlUpdateCodigo)) {
+                            psUpd.setString(1, codigoFactura);
+                            psUpd.setInt(2, idFactura);
+                            psUpd.executeUpdate();
+                        }
+                    }
+
                     String tipo = esMesAdelantado ? "PREPAGO" : "POSTPAGO";
-                    System.out.println("   ✅ [" + tipo + "] " + nombrePeriodo + " (" + rangoPeriodo + ")");
+                    System.out.println("   [" + tipo + "] " + nombrePeriodo + " (" + rangoPeriodo + ")");
                 }
                 return insertado;
             }
@@ -469,7 +556,7 @@ public class PagoDAO {
 
             String sqlInsert = "INSERT INTO factura (id_suscripcion, fecha_emision, fecha_vencimiento, " +
                     "monto_total, monto_pagado, id_estado, codigo_factura, periodo_mes, fecha_pago, rango_periodo) " +
-                    "VALUES (?, NOW(), ?, ?, ?, ?, CONCAT('MIG-', FLOOR(RAND()*100000)), ?, ?, ?)";
+                    "VALUES (?, NOW(), ?, ?, ?, ?, '', ?, ?, ?)";
 
             java.sql.Date fechaPago = (estado == 2) ? fechaVencimiento : null;
             double montoPagado = (estado == 2) ? monto : 0;
@@ -489,6 +576,15 @@ public class PagoDAO {
                 ResultSet rsKeys = ps.getGeneratedKeys();
                 if (rsKeys.next()) {
                     idFacturaGenerada = rsKeys.getInt(1);
+
+                    // Actualizar con código secuencial CORRECTO
+                    String codigoFactura = String.format("%04d", idFacturaGenerada);
+                    String sqlUpdateCodigo = "UPDATE factura SET codigo_factura = ? WHERE id_factura = ?";
+                    try (PreparedStatement psUpd = conn.prepareStatement(sqlUpdateCodigo)) {
+                        psUpd.setString(1, codigoFactura);
+                        psUpd.setInt(2, idFacturaGenerada);
+                        psUpd.executeUpdate();
+                    }
                 }
             }
 
