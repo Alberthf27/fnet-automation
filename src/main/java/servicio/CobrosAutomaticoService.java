@@ -109,7 +109,7 @@ public class CobrosAutomaticoService {
      * la factura del siguiente periodo si corresponde.
      */
     public void generarFacturasFaltantes() {
-        System.out.println("\n📋 [v2.0-DEBUG] Revisando facturas faltantes para TODOS los clientes...");
+        System.out.println("\n📋 Revisando facturas faltantes...");
 
         // Seleccionar TODAS las suscripciones activas
         String sql = "SELECT s.id_suscripcion, s.id_cliente, s.mes_adelantado, s.dia_pago, " +
@@ -350,15 +350,8 @@ public class CobrosAutomaticoService {
      * Procesa la cola de notificaciones pendientes y las envía.
      */
     public void procesarNotificacionesPendientes() {
-    System.out.println("\n⚠️ ========================================");
-    System.out.println("⚠️ ENVÍO AUTOMÁTICO DE WHATSAPP DESHABILITADO");
-    System.out.println("📤 Exportar desde: FNET Local → Módulo Mensajes → CSV → WATI");
-    System.out.println("💡 Motivo: Evolution API bloqueado por Railway");
-    System.out.println("✅ Generación de notificaciones: ACTIVA");
-    System.out.println("✅ Cortes automáticos: ACTIVOS");
-    System.out.println("⚠️ ========================================\n");
-    
-    return; // ← Deshabilita el envío
+    System.out.println("\n📤 WhatsApp automático: DESHABILITADO (usar CSV manual)");
+    return;
     
     /* CÓDIGO ORIGINAL PRESERVADO
     System.out.println("\n📤 Procesando notificaciones pendientes...");

@@ -198,8 +198,7 @@ public class PagoDAO {
 
             // B. VALIDACIÓN: Solo generar si ya llegó o pasó el día de pago
             if (diaHoy < diaPago) {
-                System.out.println("   ⏳ Suscripción " + idSuscripcion + " - día de pago es " + diaPago
-                        + ", hoy es " + diaHoy + ". Esperar.");
+                // Silencioso: no generar log por cada cliente que aún no le toca
                 return false;
             }
 
@@ -247,31 +246,14 @@ public class PagoDAO {
             // Formato del rango: "17 dic - 17 ene"
             rangoPeriodo = fechaInicio.format(fmtRango) + " - " + fechaFin.format(fmtRango);
 
-            // DEBUG: Mostrar qué periodo se está calculando
-            System.out.println("   🔍 DEBUG Suscripción " + idSuscripcion + ":");
-            System.out.println("      - Día pago: " + diaPago + ", Hoy: " + hoy);
-            System.out.println("      - Tipo: " + (esMesAdelantado ? "PREPAGO" : "POSTPAGO"));
-            System.out.println("      - Rango calculado: " + rangoPeriodo);
-            System.out.println("      - Periodo calculado: " + nombrePeriodo);
-
-            // D. Verificar que no exista factura para este periodo (ÚNICA VALIDACIÓN
-            // CONFIABLE)
+            // D. Verificar que no exista factura para este periodo
             String sqlExiste = "SELECT COUNT(*) FROM factura WHERE id_suscripcion = ? AND periodo_mes = ?";
             try (PreparedStatement ps = conn.prepareStatement(sqlExiste)) {
                 ps.setInt(1, idSuscripcion);
                 ps.setString(2, nombrePeriodo);
-
-                System.out.println("      - SQL: " + sqlExiste);
-                System.out.println("      - Parámetros: id_suscripcion=" + idSuscripcion + ", periodo_mes='"
-                        + nombrePeriodo + "'");
-
                 ResultSet rs = ps.executeQuery();
                 if (rs.next() && rs.getInt(1) > 0) {
-                    int count = rs.getInt(1);
-                    System.out.println("      ❌ Ya existe " + count + " factura(s) para periodo: " + nombrePeriodo);
-                    return false;
-                } else {
-                    System.out.println("      ✅ No existe factura para " + nombrePeriodo + " - Generando...");
+                    return false; // Ya existe, silencioso
                 }
             }
 
