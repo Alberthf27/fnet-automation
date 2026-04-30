@@ -51,9 +51,21 @@ public class AlertaDAO {
     }
 
     /**
-     * Crea una alerta de corte fallido.
+     * Crea una alerta de corte fallido, evitando duplicados en las últimas 24 horas.
      */
     public boolean crearAlertaCorteFallido(int idSuscripcion, String nombreCliente, String error) {
+        // Verificar si ya existe una alerta hoy para no spamear
+        String checkSql = "SELECT COUNT(*) FROM alerta_gerente WHERE id_suscripcion = ? AND tipo = 'CORTE_FALLIDO' AND fecha_creacion >= DATE_SUB(NOW(), INTERVAL 24 HOUR)";
+        try (Connection conn = Conexion.getConexion(); PreparedStatement ps = conn.prepareStatement(checkSql)) {
+            ps.setInt(1, idSuscripcion);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next() && rs.getInt(1) > 0) {
+                return false; // Ya hay una alerta en las últimas 24 horas, no hacer nada
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
         AlertaGerente alerta = new AlertaGerente(
                 TipoAlerta.CORTE_FALLIDO,
                 "Error al cortar servicio",

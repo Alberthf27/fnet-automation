@@ -290,8 +290,8 @@ public class CobrosAutomaticoService {
 
         int plazoDias = configDAO.obtenerValorInt(ConfiguracionDAO.PLAZO_PAGO_DIAS, 21);
 
-        // Buscar facturas que YA pasaron el plazo de ultimátum
-        String sql = "SELECT f.id_factura, f.id_suscripcion, f.monto_total, f.periodo_mes, " +
+        // Buscar facturas que YA pasaron el plazo de ultimátum (agrupado por suscripción para evitar duplicados)
+        String sql = "SELECT f.id_suscripcion, MAX(f.monto_total) as monto_total, MAX(f.periodo_mes) as periodo_mes, " +
                 "s.ip_cliente, c.nombres, c.apellidos, s.codigo_contrato " +
                 "FROM factura f " +
                 "JOIN suscripcion s ON f.id_suscripcion = s.id_suscripcion " +
@@ -303,7 +303,8 @@ public class CobrosAutomaticoService {
                 "   SELECT 1 FROM notificacion_pendiente np " +
                 "   WHERE np.id_suscripcion = f.id_suscripcion " +
                 "   AND np.tipo = 'ULTIMATUM' AND np.estado = 'ENVIADO'" +
-                ")";
+                ") " +
+                "GROUP BY f.id_suscripcion, s.ip_cliente, c.nombres, c.apellidos, s.codigo_contrato";
 
         int cortesEjecutados = 0;
 
