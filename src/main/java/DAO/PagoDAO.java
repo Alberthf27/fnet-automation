@@ -260,14 +260,15 @@ public class PagoDAO {
             // F. Insertar Factura (con rango_periodo) - codigo_factura se actualiza después
             String sqlInsert = "INSERT INTO factura (id_suscripcion, fecha_emision, fecha_vencimiento, monto_total, monto_pagado, id_estado, codigo_factura, periodo_mes, rango_periodo) "
                     +
-                    "VALUES (?, NOW(), ?, ?, 0.00, 1, '', ?, ?)";
+                    "VALUES (?, ?, ?, ?, 0.00, 1, '', ?, ?)";
 
             try (PreparedStatement ps = conn.prepareStatement(sqlInsert, java.sql.Statement.RETURN_GENERATED_KEYS)) {
                 ps.setInt(1, idSuscripcion);
-                ps.setDate(2, java.sql.Date.valueOf(fechaVencimiento));
-                ps.setDouble(3, montoMensual);
-                ps.setString(4, nombrePeriodo);
-                ps.setString(5, rangoPeriodo);
+                ps.setDate(2, new java.sql.Date(System.currentTimeMillis())); // Asegurar hora local
+                ps.setDate(3, java.sql.Date.valueOf(fechaVencimiento));
+                ps.setDouble(4, montoMensual);
+                ps.setString(5, nombrePeriodo);
+                ps.setString(6, rangoPeriodo);
 
                 boolean insertado = ps.executeUpdate() > 0;
 
@@ -538,7 +539,7 @@ public class PagoDAO {
 
             String sqlInsert = "INSERT INTO factura (id_suscripcion, fecha_emision, fecha_vencimiento, " +
                     "monto_total, monto_pagado, id_estado, codigo_factura, periodo_mes, fecha_pago, rango_periodo) " +
-                    "VALUES (?, NOW(), ?, ?, ?, ?, '', ?, ?, ?)";
+                    "VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?)";
 
             java.sql.Date fechaPago = (estado == 2) ? fechaVencimiento : null;
             double montoPagado = (estado == 2) ? monto : 0;
@@ -546,13 +547,14 @@ public class PagoDAO {
             int idFacturaGenerada = -1;
             try (PreparedStatement ps = conn.prepareStatement(sqlInsert, PreparedStatement.RETURN_GENERATED_KEYS)) {
                 ps.setInt(1, idSuscripcion);
-                ps.setDate(2, fechaVencimiento);
-                ps.setDouble(3, monto);
-                ps.setDouble(4, montoPagado);
-                ps.setInt(5, estado);
-                ps.setString(6, periodoMes);
-                ps.setDate(7, fechaPago);
-                ps.setString(8, rangoPeriodo); // Puede ser null
+                ps.setDate(2, new java.sql.Date(System.currentTimeMillis())); // Asegurar hora local
+                ps.setDate(3, fechaVencimiento);
+                ps.setDouble(4, monto);
+                ps.setDouble(5, montoPagado);
+                ps.setInt(6, estado);
+                ps.setString(7, periodoMes);
+                ps.setDate(8, fechaPago);
+                ps.setString(9, rangoPeriodo); // Puede ser null
                 ps.executeUpdate();
 
                 ResultSet rsKeys = ps.getGeneratedKeys();

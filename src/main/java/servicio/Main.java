@@ -8,6 +8,7 @@ package servicio;
 public class Main {
 
     public static void main(String[] args) {
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("America/Lima"));
         System.out.println("═══════════════════════════════════════════════════════════");
         System.out.println("🚀 FNET AUTOMATION SERVICE - Iniciando...");
         System.out.println("═══════════════════════════════════════════════════════════");
@@ -44,3 +45,4 @@ public class Main {
         }
     }
 }
+
