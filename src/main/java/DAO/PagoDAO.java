@@ -173,15 +173,19 @@ public class PagoDAO {
         try {
             conn = Conexion.getConexion();
 
-            // A. Obtener datos del contrato
-            String sqlInfo = "SELECT s.mes_adelantado, s.dia_pago, serv.mensualidad " +
+            // A. Obtener datos del contrato y cliente
+            String sqlInfo = "SELECT s.mes_adelantado, s.dia_pago, serv.mensualidad, " +
+                    "c.nombres, c.apellidos, c.telefono " +
                     "FROM suscripcion s " +
                     "JOIN servicio serv ON s.id_servicio = serv.id_servicio " +
+                    "JOIN cliente c ON s.id_cliente = c.id_cliente " +
                     "WHERE s.id_suscripcion = ?";
 
             boolean esMesAdelantado = true;
             int diaPago = LocalDate.now().getDayOfMonth();
             double montoMensual = 0.0;
+            String nombreCliente = "";
+            String telefono = "";
 
             try (PreparedStatement psInfo = conn.prepareStatement(sqlInfo)) {
                 psInfo.setInt(1, idSuscripcion);
@@ -190,6 +194,8 @@ public class PagoDAO {
                     esMesAdelantado = rsInfo.getInt("mes_adelantado") == 1;
                     diaPago = rsInfo.getInt("dia_pago");
                     montoMensual = rsInfo.getDouble("mensualidad");
+                    nombreCliente = rsInfo.getString("nombres") + " " + rsInfo.getString("apellidos");
+                    telefono = rsInfo.getString("telefono");
                 }
             }
 
@@ -206,9 +212,7 @@ public class PagoDAO {
             LocalDate fechaInicio, fechaFin, fechaVencimiento;
             String nombrePeriodo, rangoPeriodo;
             DateTimeFormatter fmtMes = DateTimeFormatter.ofPattern("MMMM yyyy", new Locale("es", "ES"));
-            DateTimeFormatter fmtRango = DateTimeFormatter.ofPattern("dd MMM", new Locale("es", "ES")); // Formato
-                                                                                                        // legible: "17
-                                                                                                        // dic"
+            DateTimeFormatter fmtRango = DateTimeFormatter.ofPattern("dd MMM", new Locale("es", "ES"));
 
             if (esMesAdelantado) {
                 // PREPAGO: Cobra período ADELANTE
@@ -284,6 +288,29 @@ public class PagoDAO {
                             psUpd.setString(1, codigoFactura);
                             psUpd.setInt(2, idFactura);
                             psUpd.executeUpdate();
+                        }
+                    }
+
+                    // G. Notificación de Nueva Deuda (Recordatorio)
+                    if (telefono != null && !telefono.trim().isEmpty()) {
+                        try {
+                            String template = "Hola " + nombreCliente + " 👋\n\n" +
+                                    "Le recordamos que su pago del servicio de internet correspondiente a *" + nombrePeriodo + "* " +
+                                    "por *S/ " + String.format(Locale.US, "%.2f", montoMensual) + "* está disponible.\n\n" +
+                                    "Gracias por su preferencia. 🌐\n" +
+                                    "_FNET - Internet de Alta Velocidad_";
+
+                            String sqlNotif = "INSERT INTO notificacion_pendiente " +
+                                            "(id_suscripcion, tipo, mensaje, telefono, fecha_programada, estado) " +
+                                            "VALUES (?, 'RECORDATORIO', ?, ?, CURRENT_DATE(), 'PENDIENTE')";
+                            try (PreparedStatement psNotif = conn.prepareStatement(sqlNotif)) {
+                                psNotif.setInt(1, idSuscripcion);
+                                psNotif.setString(2, template);
+                                psNotif.setString(3, telefono);
+                                psNotif.executeUpdate();
+                            }
+                        } catch (Exception ex) {
+                            System.err.println("⚠️ Error generando recordatorio en automatización: " + ex.getMessage());
                         }
                     }
 
