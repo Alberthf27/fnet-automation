@@ -329,14 +329,10 @@ public class CobrosAutomaticoService {
                         cortesEjecutados++;
                         System.out.println("   🔴 Cortado: " + nombreCliente + " (" + ipCliente + ")");
                     } else {
-                        // Crear alerta de corte fallido
-                        alertaDAO.crearAlertaCorteFallido(idSuscripcion, nombreCliente,
-                                "No se pudo conectar al router");
+                        System.out.println("   ⚠️ Corte fallido (sin router): " + nombreCliente);
                     }
                 } else {
-                    // Sin IP configurada
-                    alertaDAO.crearAlertaCorteFallido(idSuscripcion, nombreCliente,
-                            "Cliente sin IP configurada");
+                    System.out.println("   ⚠️ Sin IP configurada: " + nombreCliente);
                 }
             }
 
