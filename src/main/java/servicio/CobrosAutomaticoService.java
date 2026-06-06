@@ -61,13 +61,14 @@ public class CobrosAutomaticoService {
         System.out.println("🔄 INICIANDO PROCESO DIARIO DE COBROS - " + LocalDate.now());
         System.out.println("═══════════════════════════════════════════════════════════");
 
-        // 1. Generar facturas - SOLO 2 veces al día (8AM y 6PM) o al iniciar
+        // 1. Generar facturas - 6AM, 8AM y 6PM (6AM envia recordatorios)
         int horaActual = java.time.LocalTime.now().getHour();
-        if (horaActual == 8 || horaActual == 18 || primeraEjecucionDelDia()) {
+        boolean esHoraFacturacion = horaActual == 6 || horaActual == 8 || horaActual == 18;
+        if (esHoraFacturacion || primeraEjecucionDelDia()) {
             System.out.println("\n📋 [Generación de Facturas - " + horaActual + ":00]");
-            generarFacturasFaltantes();
+            generarFacturasFaltantes(esHoraFacturacion);
         } else {
-            System.out.println("\n📋 Generación de facturas: Solo a las 8AM y 6PM (actual: " + horaActual + ":00)");
+            System.out.println("\n📋 Generación de facturas: Solo a las 6AM, 8AM y 6PM (actual: " + horaActual + ":00)");
         }
 
         // 2. Revisar facturas vencidas y crear notificaciones de recordatorio (CADA
@@ -108,7 +109,7 @@ public class CobrosAutomaticoService {
      * No depende del día de pago - revisa cada suscripción y genera
      * la factura del siguiente periodo si corresponde.
      */
-    public void generarFacturasFaltantes() {
+    public void generarFacturasFaltantes(boolean enviarNotificaciones) {
         System.out.println("\n📋 Revisando facturas faltantes...");
 
         // Seleccionar TODAS las suscripciones activas
@@ -146,8 +147,8 @@ public class CobrosAutomaticoService {
                         // Contar facturas pendientes DESPUÉS de generar la nueva
                         int facturasPendientes = pagoDAO.contarFacturasPendientes(idSuscripcion);
 
-                        // ⚠️ MODO PRUEBA: Solo enviar a DNI 44085317
-                        boolean esPrueba = "44085317".equals(dni);
+                        // ⚠️ MODO PRUEBA: Solo enviar a DNI 44085317, solo en horario programado (6AM)
+                        boolean esPrueba = enviarNotificaciones && "44085317".equals(dni);
 
                         if (esPrueba) {
                             // Obtener información de la factura recién generada
@@ -172,6 +173,9 @@ public class CobrosAutomaticoService {
                             whatsAppService.enviarMensaje(telefono, mensaje.toString());
                             notificacionesProgramadas++;
                             System.out.println("   📱 Notificación enviada a cliente de prueba: " + nombreCliente);
+                        } else if (!enviarNotificaciones) {
+                            System.out.println(
+                                    "   ⏭️ Notificaciones solo en horario programado (6AM, 8AM, 6PM), omitido ahora.");
                         } else {
                             System.out.println(
                                     "   ⏭️ Cliente omitido (no es prueba): " + nombreCliente + " - DNI: " + dni);
@@ -213,7 +217,7 @@ public class CobrosAutomaticoService {
     @Deprecated
     public void generarFacturasDelDia(int diaPago) {
         // Mantener por compatibilidad pero llamar al nuevo método
-        generarFacturasFaltantes();
+        generarFacturasFaltantes(true);
     }
 
     /**
@@ -221,7 +225,7 @@ public class CobrosAutomaticoService {
      */
     @Deprecated
     public void generarFacturasMensuales() {
-        generarFacturasFaltantes();
+        generarFacturasFaltantes(true);
     }
 
     /**
