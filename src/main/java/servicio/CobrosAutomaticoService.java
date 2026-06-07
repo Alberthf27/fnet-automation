@@ -147,9 +147,7 @@ public class CobrosAutomaticoService {
                         // Contar facturas pendientes DESPUÉS de generar la nueva
                         int facturasPendientes = pagoDAO.contarFacturasPendientes(idSuscripcion);
 
-                        if (mesAdelantado) {
-                            System.out.println("   📋 Prepago (" + nombreCliente + "): salteando notificación.");
-                        } else if (enviarNotificaciones) {
+                        if (enviarNotificaciones) {
                             // Obtener información de la factura recién generada
                             String facturaInfo = pagoDAO.obtenerUltimaFacturaInfo(idSuscripcion);
 
@@ -178,7 +176,7 @@ public class CobrosAutomaticoService {
                         }
 
                         // ADVERTENCIA DE CORTE: Si llega a 3 meses de deuda
-                        if (!mesAdelantado && facturasPendientes >= 3) {
+                        if (facturasPendientes >= 3) {
                             double deudaTotal = monto * facturasPendientes;
                             String mensajeUrgente = String.format(
                                     "⚠️ AVISO IMPORTANTE %s: Tienes %d meses de deuda acumulada (S/. %.2f). " +
@@ -240,7 +238,6 @@ public class CobrosAutomaticoService {
                 "JOIN cliente c ON s.id_cliente = c.id_cliente " +
                 "WHERE f.id_estado = 1 " + // 1 = PENDIENTE
                 "AND s.activo = 1 " +
-                "AND s.mes_adelantado = 0 " + // Solo postpago
                 "AND DATEDIFF(CURRENT_DATE(), f.fecha_vencimiento) >= ? " +
                 "AND NOT EXISTS (" +
                 "   SELECT 1 FROM notificacion_pendiente np " +

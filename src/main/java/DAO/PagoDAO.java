@@ -291,8 +291,8 @@ public class PagoDAO {
                         }
                     }
 
-                    // G. Notificación de Nueva Deuda (Recordatorio) - Solo postpago
-                    if (!esMesAdelantado && telefono != null && !telefono.trim().isEmpty()) {
+                    // G. Notificación de Nueva Deuda (Recordatorio)
+                    if (telefono != null && !telefono.trim().isEmpty()) {
                         try {
                             String template = "Hola " + nombreCliente + " 👋\n\n" +
                                     "Le recordamos que su pago del servicio de internet correspondiente a *" + nombrePeriodo + "* " +
